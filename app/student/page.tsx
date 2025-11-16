@@ -6,18 +6,43 @@ import UsernameEntry from '@/components/student/username-entry'
 import QuestionView from '@/components/student/question-view'
 import AnswerEditor from '@/components/student/answer-editor'
 import SubmissionConfirmation from '@/components/student/submission-confirmation'
+import SessionEntry from '@/components/student/session-entry'
 
-type StudentFlow = 'team' | 'username' | 'question' | 'answer' | 'confirmation'
+type StudentFlow = 'session' | 'team' | 'username' | 'question' | 'answer' | 'confirmation'
 
 export default function StudentPage() {
-  const [flow, setFlow] = useState<StudentFlow>('team')
+  const [flow, setFlow] = useState<StudentFlow>('session')
+  const [hasSession, setHasSession] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState<string>('')
   const [username, setUsername] = useState<string>('')
   const [currentQuestion, setCurrentQuestion] = useState<string>('')
   const [currentAnswer, setCurrentAnswer] = useState<string>('')
 
+  // Check for session ID on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id')
+    
+    if (sessionId) {
+      setHasSession(true)
+      setFlow('team')
+    } else {
+      // Check if there are any teams available (for backward compatibility)
+      const hasTeams = localStorage.getItem('host-teams') || 
+        Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
+          .some(key => key && key.startsWith('teams-') && localStorage.getItem(key))
+      
+      if (hasTeams) {
+        setHasSession(true)
+        setFlow('team')
+      }
+    }
+  }, [])
+
   // Check if student already has a team assigned (by host)
   useEffect(() => {
+    if (!hasSession) return
+    
     const checkTeamAssignment = () => {
       try {
         // Get session ID from URL
@@ -58,7 +83,7 @@ export default function StudentPage() {
     // Poll for team changes from host
     const interval = setInterval(checkTeamAssignment, 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, [hasSession])
 
   const handleTeamSelect = (teamId: string) => {
     setSelectedTeam(teamId)
@@ -197,8 +222,14 @@ export default function StudentPage() {
     setCurrentAnswer('')
   }
 
+  const handleSessionEntered = (sessionId: string) => {
+    setHasSession(true)
+    setFlow('team')
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      {flow === 'session' && <SessionEntry onSessionEntered={handleSessionEntered} />}
       {flow === 'team' && <TeamSelection onSelect={handleTeamSelect} />}
       {flow === 'username' && <UsernameEntry onSubmit={handleUsernameSubmit} team={selectedTeam} />}
       {flow === 'question' && (

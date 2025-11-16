@@ -30,37 +30,54 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
           sessionId = localStorage.getItem('host-session-id')
         }
         
-        // Try multiple storage keys to find teams
+        // Try multiple storage keys to find teams - prioritize most recent
         let savedTeams = null
+        let allTeamsKeys: { key: string; teams: any[]; timestamp?: number }[] = []
         
-        if (sessionId) {
-          // Try session-specific key first
-          savedTeams = localStorage.getItem(`teams-${sessionId}`)
-        }
-        
-        // Fallback to old keys
-        if (!savedTeams) {
-          savedTeams = localStorage.getItem('host-teams')
-        }
-        
-        // Also try any teams-* keys (for compatibility)
-        if (!savedTeams && typeof Storage !== 'undefined') {
+        // Collect all teams from all possible keys
+        if (typeof Storage !== 'undefined') {
           for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i)
-            if (key && key.startsWith('teams-')) {
-              savedTeams = localStorage.getItem(key)
-              if (savedTeams) {
-                try {
-                  const parsed = JSON.parse(savedTeams)
+            if (key && (key.startsWith('teams-') || key === 'host-teams')) {
+              try {
+                const teamsData = localStorage.getItem(key)
+                if (teamsData) {
+                  const parsed = JSON.parse(teamsData)
                   if (Array.isArray(parsed) && parsed.length > 0) {
-                    break
+                    allTeamsKeys.push({ key, teams: parsed })
                   }
-                } catch {
-                  savedTeams = null
                 }
+              } catch (e) {
+                // Skip invalid data
               }
             }
           }
+        }
+        
+        // Prioritize: session-specific > host-teams > any other teams-* key
+        if (sessionId) {
+          const sessionKey = `teams-${sessionId}`
+          const sessionTeams = allTeamsKeys.find(t => t.key === sessionKey)
+          if (sessionTeams) {
+            savedTeams = JSON.stringify(sessionTeams.teams)
+          }
+        }
+        
+        // Fallback to host-teams
+        if (!savedTeams) {
+          const hostTeams = allTeamsKeys.find(t => t.key === 'host-teams')
+          if (hostTeams) {
+            savedTeams = JSON.stringify(hostTeams.teams)
+          }
+        }
+        
+        // Fallback to any teams-* key with teams
+        if (!savedTeams && allTeamsKeys.length > 0) {
+          // Use the one with most teams
+          const best = allTeamsKeys.reduce((prev, curr) => 
+            curr.teams.length > prev.teams.length ? curr : prev
+          )
+          savedTeams = JSON.stringify(best.teams)
         }
         
         if (savedTeams) {
@@ -134,15 +151,21 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
         <div className="space-y-3">
           {teams.length === 0 ? (
             <div className="text-center py-8 space-y-4">
-              <div className="text-muted-foreground text-sm font-serif italic">
+              <div className="text-muted-foreground text-sm font-serif italic mb-4">
                 No teams available. Please wait for the host to create teams.
               </div>
-              <div className="text-xs text-muted-foreground font-mono">
+              <div className="text-xs text-muted-foreground space-y-2">
                 {typeof window !== 'undefined' && (
                   <>
-                    Session: {new URLSearchParams(window.location.search).get('session') || 'none'}
-                    <br />
-                    Checking for teams...
+                    <div className="font-mono p-2 bg-muted rounded">
+                      Session: {new URLSearchParams(window.location.search).get('session') || 'none'}
+                    </div>
+                    <div className="text-xs italic">
+                      Make sure you're using the session link shared by the host
+                    </div>
+                    <div className="animate-pulse text-gold">
+                      Checking for teams...
+                    </div>
                   </>
                 )}
               </div>

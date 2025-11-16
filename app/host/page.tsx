@@ -302,7 +302,7 @@ export default function HostPage() {
       {/* Session Info Modal */}
       {showSessionInfo && sessionId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border-2 border-sepia rounded-lg p-8 max-w-md w-full shadow-lg">
+          <div className="bg-card border-2 border-sepia rounded-lg p-8 max-w-md w-full shadow-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-muted">
               <h2 className="text-2xl font-serif text-burgundy">Share Session</h2>
               <button
@@ -320,20 +320,69 @@ export default function HostPage() {
 
               <div className="bg-muted p-4 rounded-lg">
                 <p className="text-xs font-serif text-sepia uppercase tracking-wide mb-2">Student Link:</p>
-                <p className="text-sm font-mono text-foreground break-all">
+                <p className="text-sm font-mono text-foreground break-all bg-background p-2 rounded">
                   {typeof window !== 'undefined' ? `${window.location.origin}/student?session=${sessionId}` : ''}
+                </p>
+              </div>
+
+              <div className="bg-muted p-4 rounded-lg">
+                <p className="text-xs font-serif text-sepia uppercase tracking-wide mb-2">Session ID:</p>
+                <p className="text-sm font-mono text-foreground break-all bg-background p-2 rounded">
+                  {sessionId}
                 </p>
               </div>
 
               <button
                 onClick={() => {
                   const studentUrl = typeof window !== 'undefined' ? `${window.location.origin}/student?session=${sessionId}` : ''
-                  navigator.clipboard.writeText(studentUrl)
-                  alert('Link copied to clipboard!')
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(studentUrl).then(() => {
+                      alert('Link copied to clipboard!')
+                    }).catch(() => {
+                      // Fallback for older browsers
+                      const textArea = document.createElement('textarea')
+                      textArea.value = studentUrl
+                      document.body.appendChild(textArea)
+                      textArea.select()
+                      document.execCommand('copy')
+                      document.body.removeChild(textArea)
+                      alert('Link copied to clipboard!')
+                    })
+                  } else {
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea')
+                    textArea.value = studentUrl
+                    document.body.appendChild(textArea)
+                    textArea.select()
+                    document.execCommand('copy')
+                    document.body.removeChild(textArea)
+                    alert('Link copied to clipboard!')
+                  }
                 }}
                 className="w-full bg-burgundy hover:bg-burgundy/90 text-parchment px-4 py-2 rounded-lg font-serif"
               >
                 Copy Student Link
+              </button>
+
+              <button
+                onClick={() => {
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(sessionId).then(() => {
+                      alert('Session ID copied!')
+                    })
+                  } else {
+                    const textArea = document.createElement('textarea')
+                    textArea.value = sessionId
+                    document.body.appendChild(textArea)
+                    textArea.select()
+                    document.execCommand('copy')
+                    document.body.removeChild(textArea)
+                    alert('Session ID copied!')
+                  }
+                }}
+                className="w-full bg-gold hover:bg-gold/90 text-ink px-4 py-2 rounded-lg font-serif"
+              >
+                Copy Session ID
               </button>
 
               <button
