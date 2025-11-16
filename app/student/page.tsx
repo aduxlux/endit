@@ -19,19 +19,38 @@ export default function StudentPage() {
   // Check if student already has a team assigned (by host)
   useEffect(() => {
     const checkTeamAssignment = () => {
-      const studentTeamData = localStorage.getItem('student-team-assignment')
-      if (studentTeamData) {
-        const data = JSON.parse(studentTeamData)
-        // Always check host's student list for current team (host can change it)
-        const hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
-        const existingStudent = hostStudents.find((s: any) => s.id === data.studentId)
+      try {
+        // Get session ID from URL
+        const urlParams = new URLSearchParams(window.location.search)
+        const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id')
         
-        if (existingStudent && existingStudent.team) {
-          // Student already has a team assigned, skip team selection
-          setSelectedTeam(existingStudent.team)
-          setUsername(existingStudent.name)
-          setFlow('question')
+        const studentTeamData = localStorage.getItem('student-team-assignment')
+        if (studentTeamData) {
+          const data = JSON.parse(studentTeamData)
+          // Always check host's student list for current team (host can change it)
+          // Try session-specific first, then fallback
+          let hostStudents = []
+          if (sessionId) {
+            const sessionStudents = localStorage.getItem(`students-${sessionId}`)
+            if (sessionStudents) {
+              hostStudents = JSON.parse(sessionStudents)
+            }
+          }
+          if (hostStudents.length === 0) {
+            hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
+          }
+          
+          const existingStudent = hostStudents.find((s: any) => s.id === data.studentId)
+          
+          if (existingStudent && existingStudent.team) {
+            // Student already has a team assigned, skip team selection
+            setSelectedTeam(existingStudent.team)
+            setUsername(existingStudent.name)
+            setFlow('question')
+          }
         }
+      } catch (error) {
+        console.error('Error checking team assignment:', error)
       }
     }
     
@@ -49,6 +68,10 @@ export default function StudentPage() {
   const handleUsernameSubmit = (name: string) => {
     setUsername(name)
     
+    // Get session ID from URL
+    const urlParams = new URLSearchParams(window.location.search)
+    const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id') || 'default-session'
+    
     // Save student's team assignment to localStorage (they can only join once)
     const studentId = `student-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     localStorage.setItem('student-team-assignment', JSON.stringify({
@@ -58,9 +81,31 @@ export default function StudentPage() {
       timestamp: Date.now()
     }))
     
-    // Also add to host's student list
-    const hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
-    const team = JSON.parse(localStorage.getItem('host-teams') || '[]').find((t: any) => t.id === selectedTeam)
+    // Also add to host's student list (using session ID)
+    let hostStudents = []
+    if (sessionId) {
+      const sessionStudents = localStorage.getItem(`students-${sessionId}`)
+      if (sessionStudents) {
+        hostStudents = JSON.parse(sessionStudents)
+      }
+    }
+    if (hostStudents.length === 0) {
+      hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
+    }
+    
+    // Get teams (using session ID)
+    let teams = []
+    if (sessionId) {
+      const sessionTeams = localStorage.getItem(`teams-${sessionId}`)
+      if (sessionTeams) {
+        teams = JSON.parse(sessionTeams)
+      }
+    }
+    if (teams.length === 0) {
+      teams = JSON.parse(localStorage.getItem('host-teams') || '[]')
+    }
+    
+    const team = teams.find((t: any) => t.id === selectedTeam)
     
     if (team) {
       // Check if student with same name already exists
@@ -73,6 +118,11 @@ export default function StudentPage() {
           status: 'pending',
           response: ''
         })
+        
+        // Save to both session-specific and old key
+        if (sessionId) {
+          localStorage.setItem(`students-${sessionId}`, JSON.stringify(hostStudents))
+        }
         localStorage.setItem('host-students', JSON.stringify(hostStudents))
       }
     }

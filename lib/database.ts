@@ -112,6 +112,9 @@ export const sessionDb = {
 // Team operations
 export const teamDb = {
   async create(sessionId: string, name: string, emblem: string, color: string) {
+    if (!supabase) {
+      throw new Error('Supabase not configured')
+    }
     const { data, error } = await supabase
       .from('teams')
       .insert([{ session_id: sessionId, name, emblem, color }])
@@ -123,12 +126,18 @@ export const teamDb = {
   },
 
   async getBySession(sessionId: string) {
+    if (!supabase) {
+      return [] // Return empty array if Supabase not configured
+    }
     const { data, error } = await supabase
       .from('teams')
       .select()
       .eq('session_id', sessionId)
 
-    if (error) throw error
+    if (error) {
+      console.warn('Supabase teams fetch failed:', error)
+      return []
+    }
     return data as Team[]
   },
 }
@@ -136,6 +145,9 @@ export const teamDb = {
 // User (student) operations
 export const userDb = {
   async create(sessionId: string, teamId: string, name: string) {
+    if (!supabase) {
+      throw new Error('Supabase not configured')
+    }
     const { data, error } = await supabase
       .from('users')
       .insert([{ session_id: sessionId, team_id: teamId, name }])
@@ -147,16 +159,25 @@ export const userDb = {
   },
 
   async getBySession(sessionId: string) {
+    if (!supabase) {
+      return [] // Return empty array if Supabase not configured
+    }
     const { data, error } = await supabase
       .from('users')
       .select()
       .eq('session_id', sessionId)
 
-    if (error) throw error
+    if (error) {
+      console.warn('Supabase users fetch failed:', error)
+      return []
+    }
     return data as User[]
   },
 
   async updateStatus(userId: string, status: string) {
+    if (!supabase) {
+      throw new Error('Supabase not configured')
+    }
     const { data, error } = await supabase
       .from('users')
       .update({ status, last_seen: new Date().toISOString() })

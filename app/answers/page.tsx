@@ -23,30 +23,59 @@ export default function AnswersPage() {
   const [showAllAnswers, setShowAllAnswers] = useState(false)
   const [highlightedAnswerId, setHighlightedAnswerId] = useState<string | null>(null)
 
-  // Load answers from localStorage
+  // Load answers from localStorage (using session ID)
   useEffect(() => {
     const loadAnswers = () => {
-      const studentAnswers = JSON.parse(localStorage.getItem('student-answers') || '[]')
-      const teams = JSON.parse(localStorage.getItem('host-teams') || '[]')
-      
-      const formattedAnswers: Answer[] = studentAnswers.map((answer: any) => {
-        const team = teams.find((t: any) => t.id === answer.teamId)
-        return {
-          id: answer.id,
-          studentId: answer.studentId,
-          studentName: answer.studentName,
-          teamId: answer.teamId,
-          teamName: team?.name || 'Unknown Team',
-          text: answer.text,
-          rating: answer.rating,
-          highlighted: answer.highlighted || false,
-          timestamp: new Date(answer.timestamp || Date.now())
+      try {
+        // Get session ID from URL
+        const urlParams = new URLSearchParams(window.location.search)
+        const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id')
+        
+        // Get answers (try session-specific first)
+        let studentAnswers = []
+        if (sessionId) {
+          const sessionAnswers = localStorage.getItem(`answers-${sessionId}`)
+          if (sessionAnswers) {
+            studentAnswers = JSON.parse(sessionAnswers)
+          }
         }
-      })
-      
-      setAnswers(formattedAnswers)
-      if (formattedAnswers.length > 0 && currentIndex >= formattedAnswers.length) {
-        setCurrentIndex(0)
+        if (studentAnswers.length === 0) {
+          studentAnswers = JSON.parse(localStorage.getItem('student-answers') || '[]')
+        }
+        
+        // Get teams (try session-specific first)
+        let teams = []
+        if (sessionId) {
+          const sessionTeams = localStorage.getItem(`teams-${sessionId}`)
+          if (sessionTeams) {
+            teams = JSON.parse(sessionTeams)
+          }
+        }
+        if (teams.length === 0) {
+          teams = JSON.parse(localStorage.getItem('host-teams') || '[]')
+        }
+        
+        const formattedAnswers: Answer[] = studentAnswers.map((answer: any) => {
+          const team = teams.find((t: any) => t.id === answer.teamId)
+          return {
+            id: answer.id,
+            studentId: answer.studentId,
+            studentName: answer.studentName,
+            teamId: answer.teamId,
+            teamName: team?.name || 'Unknown Team',
+            text: answer.text,
+            rating: answer.rating,
+            highlighted: answer.highlighted || false,
+            timestamp: new Date(answer.timestamp || Date.now())
+          }
+        })
+        
+        setAnswers(formattedAnswers)
+        if (formattedAnswers.length > 0 && currentIndex >= formattedAnswers.length) {
+          setCurrentIndex(0)
+        }
+      } catch (error) {
+        console.error('Error loading answers:', error)
       }
     }
     

@@ -20,19 +20,70 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
   // Load teams from localStorage (set by host) - using session ID
   useEffect(() => {
     const loadTeams = () => {
-      // Get session ID from URL
-      const urlParams = new URLSearchParams(window.location.search)
-      const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id') || 'default-session'
-      
-      // Try session-specific first, then fallback to old key
-      const savedTeams = localStorage.getItem(`teams-${sessionId}`) || localStorage.getItem('host-teams')
-      if (savedTeams) {
-        setTeams(JSON.parse(savedTeams))
+      try {
+        // Get session ID from URL first
+        const urlParams = new URLSearchParams(window.location.search)
+        let sessionId = urlParams.get('session')
+        
+        // If no session in URL, try to get from localStorage
+        if (!sessionId) {
+          sessionId = localStorage.getItem('host-session-id')
+        }
+        
+        // Try multiple storage keys to find teams
+        let savedTeams = null
+        
+        if (sessionId) {
+          // Try session-specific key first
+          savedTeams = localStorage.getItem(`teams-${sessionId}`)
+        }
+        
+        // Fallback to old keys
+        if (!savedTeams) {
+          savedTeams = localStorage.getItem('host-teams')
+        }
+        
+        // Also try any teams-* keys (for compatibility)
+        if (!savedTeams && typeof Storage !== 'undefined') {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i)
+            if (key && key.startsWith('teams-')) {
+              savedTeams = localStorage.getItem(key)
+              if (savedTeams) {
+                try {
+                  const parsed = JSON.parse(savedTeams)
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    break
+                  }
+                } catch {
+                  savedTeams = null
+                }
+              }
+            }
+          }
+        }
+        
+        if (savedTeams) {
+          try {
+            const parsed = JSON.parse(savedTeams)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setTeams(parsed)
+            }
+          } catch (error) {
+            console.warn('Failed to parse teams:', error)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading teams:', error)
       }
     }
+    
+    // Load immediately
     loadTeams()
-    // Poll for team updates
-    const interval = setInterval(loadTeams, 1000)
+    
+    // Poll for team updates more frequently
+    const interval = setInterval(loadTeams, 500) // Check every 500ms
+    
     return () => clearInterval(interval)
   }, [])
 
@@ -40,14 +91,33 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
     // Check if student already has a team assigned
     const studentTeamData = localStorage.getItem('student-team-assignment')
     if (studentTeamData) {
-      const data = JSON.parse(studentTeamData)
-      const hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
-      const existingStudent = hostStudents.find((s: any) => s.id === data.studentId)
-      
-      if (existingStudent && existingStudent.team) {
-        // Student already has a team - they cannot change it themselves
-        alert('You are already assigned to a team. Only the host can change your team assignment.')
-        return
+      try {
+        const data = JSON.parse(studentTeamData)
+        // Get session ID
+        const urlParams = new URLSearchParams(window.location.search)
+        const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id')
+        
+        // Check host's student list (try session-specific first)
+        let hostStudents = []
+        if (sessionId) {
+          const sessionStudents = localStorage.getItem(`students-${sessionId}`)
+          if (sessionStudents) {
+            hostStudents = JSON.parse(sessionStudents)
+          }
+        }
+        if (hostStudents.length === 0) {
+          hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
+        }
+        
+        const existingStudent = hostStudents.find((s: any) => s.id === data.studentId)
+        
+        if (existingStudent && existingStudent.team) {
+          // Student already has a team - they cannot change it themselves
+          alert('You are already assigned to a team. Only the host can change your team assignment.')
+          return
+        }
+      } catch (error) {
+        console.error('Error checking team assignment:', error)
       }
     }
     
@@ -63,8 +133,19 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
 
         <div className="space-y-3">
           {teams.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground text-sm font-serif italic">
-              No teams available. Please wait for the host to create teams.
+            <div className="text-center py-8 space-y-4">
+              <div className="text-muted-foreground text-sm font-serif italic">
+                No teams available. Please wait for the host to create teams.
+              </div>
+              <div className="text-xs text-muted-foreground font-mono">
+                {typeof window !== 'undefined' && (
+                  <>
+                    Session: {new URLSearchParams(window.location.search).get('session') || 'none'}
+                    <br />
+                    Checking for teams...
+                  </>
+                )}
+              </div>
             </div>
           ) : (
             teams.map((team) => (

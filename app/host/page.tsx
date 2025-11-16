@@ -94,14 +94,34 @@ export default function HostPage() {
   // Save teams and students to localStorage (with session ID)
   useEffect(() => {
     if (!sessionId) return
-    localStorage.setItem(`teams-${sessionId}`, JSON.stringify(teams))
-    localStorage.setItem('host-teams', JSON.stringify(teams)) // Also save to old key for compatibility
+    try {
+      localStorage.setItem(`teams-${sessionId}`, JSON.stringify(teams))
+      localStorage.setItem('host-teams', JSON.stringify(teams)) // Also save to old key for compatibility
+      
+      // Trigger storage event for cross-device sync
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: `teams-${sessionId}`,
+        newValue: JSON.stringify(teams)
+      }))
+    } catch (error) {
+      console.error('Error saving teams:', error)
+    }
   }, [teams, sessionId])
 
   useEffect(() => {
     if (!sessionId) return
-    localStorage.setItem(`students-${sessionId}`, JSON.stringify(students))
-    localStorage.setItem('host-students', JSON.stringify(students)) // Also save to old key for compatibility
+    try {
+      localStorage.setItem(`students-${sessionId}`, JSON.stringify(students))
+      localStorage.setItem('host-students', JSON.stringify(students)) // Also save to old key for compatibility
+      
+      // Trigger storage event for cross-device sync
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: `students-${sessionId}`,
+        newValue: JSON.stringify(students)
+      }))
+    } catch (error) {
+      console.error('Error saving students:', error)
+    }
   }, [students, sessionId])
 
   // Listen for new student answers from student page (using session ID)
@@ -265,13 +285,18 @@ export default function HostPage() {
 
       {/* Session Info Button */}
       {sessionId && (
-        <button
-          onClick={() => setShowSessionInfo(true)}
-          className="fixed bottom-6 right-6 bg-burgundy hover:bg-burgundy/90 text-parchment px-4 py-2 rounded-lg shadow-lg font-serif text-sm z-50"
-          title="Share session link with students"
-        >
-          📱 Share Session
-        </button>
+        <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
+          <button
+            onClick={() => setShowSessionInfo(true)}
+            className="bg-burgundy hover:bg-burgundy/90 text-parchment px-4 py-2 rounded-lg shadow-lg font-serif text-sm"
+            title="Share session link with students"
+          >
+            📱 Share Session
+          </button>
+          <div className="bg-card border border-sepia rounded px-2 py-1 text-xs font-mono text-muted-foreground">
+            Session: {sessionId.substring(0, 12)}...
+          </div>
+        </div>
       )}
 
       {/* Session Info Modal */}
