@@ -17,9 +17,9 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
   const [selectedTeam, setSelectedTeam] = useState<string>('')
   const [teams, setTeams] = useState<Team[]>([])
 
-  // Load teams from localStorage (set by host) - using session ID
+  // Load teams from API - works across devices
   useEffect(() => {
-    const loadTeams = () => {
+    const loadTeams = async () => {
       try {
         // Get session ID from URL first
         const urlParams = new URLSearchParams(window.location.search)
@@ -30,76 +30,70 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
           sessionId = localStorage.getItem('host-session-id')
         }
         
-        // Try multiple storage keys to find teams - prioritize most recent
-        let savedTeams = null
-        let allTeamsKeys: { key: string; teams: any[]; timestamp?: number }[] = []
+        if (!sessionId) {
+          // No session ID, can't load teams
+          setTeams([])
+          return
+        }
         
-        // Collect all teams from all possible keys
-        if (typeof Storage !== 'undefined') {
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i)
-            if (key && (key.startsWith('teams-') || key === 'host-teams')) {
+        // Fetch teams from API
+        try {
+          const response = await fetch(`/api/teams/${sessionId}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (Array.isArray(data.teams) && data.teams.length > 0) {
+              setTeams(data.teams)
+            } else {
+              setTeams([])
+            }
+          } else {
+            // API failed, try localStorage as fallback
+            const stored = localStorage.getItem(`teams-${sessionId}`) || localStorage.getItem('host-teams')
+            if (stored) {
               try {
-                const teamsData = localStorage.getItem(key)
-                if (teamsData) {
-                  const parsed = JSON.parse(teamsData)
-                  if (Array.isArray(parsed) && parsed.length > 0) {
-                    allTeamsKeys.push({ key, teams: parsed })
-                  }
+                const parsed = JSON.parse(stored)
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  setTeams(parsed)
+                } else {
+                  setTeams([])
                 }
               } catch (e) {
-                // Skip invalid data
+                setTeams([])
               }
+            } else {
+              setTeams([])
             }
           }
-        }
-        
-        // Prioritize: session-specific > host-teams > any other teams-* key
-        if (sessionId) {
-          const sessionKey = `teams-${sessionId}`
-          const sessionTeams = allTeamsKeys.find(t => t.key === sessionKey)
-          if (sessionTeams) {
-            savedTeams = JSON.stringify(sessionTeams.teams)
-          }
-        }
-        
-        // Fallback to host-teams
-        if (!savedTeams) {
-          const hostTeams = allTeamsKeys.find(t => t.key === 'host-teams')
-          if (hostTeams) {
-            savedTeams = JSON.stringify(hostTeams.teams)
-          }
-        }
-        
-        // Fallback to any teams-* key with teams
-        if (!savedTeams && allTeamsKeys.length > 0) {
-          // Use the one with most teams
-          const best = allTeamsKeys.reduce((prev, curr) => 
-            curr.teams.length > prev.teams.length ? curr : prev
-          )
-          savedTeams = JSON.stringify(best.teams)
-        }
-        
-        if (savedTeams) {
-          try {
-            const parsed = JSON.parse(savedTeams)
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setTeams(parsed)
+        } catch (fetchError) {
+          // Network error, try localStorage as fallback
+          console.warn('API fetch failed, trying localStorage:', fetchError)
+          const stored = localStorage.getItem(`teams-${sessionId}`) || localStorage.getItem('host-teams')
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored)
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setTeams(parsed)
+              } else {
+                setTeams([])
+              }
+            } catch (e) {
+              setTeams([])
             }
-          } catch (error) {
-            console.warn('Failed to parse teams:', error)
+          } else {
+            setTeams([])
           }
         }
       } catch (error) {
         console.error('Error loading teams:', error)
+        setTeams([])
       }
     }
     
     // Load immediately
     loadTeams()
     
-    // Poll for team updates more frequently
-    const interval = setInterval(loadTeams, 500) // Check every 500ms
+    // Poll for team updates every 1 second
+    const interval = setInterval(loadTeams, 1000)
     
     return () => clearInterval(interval)
   }, [])
