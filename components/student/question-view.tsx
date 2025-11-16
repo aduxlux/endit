@@ -36,6 +36,20 @@ export default function QuestionView({ username, team, sessionId, onAnswer }: Qu
   const [isRevealed, setIsRevealed] = useState(false)
   const [pageTurnKey, setPageTurnKey] = useState(0)
 
+  // Validate that student has team and username
+  if (!username || !team) {
+    return (
+      <div className="w-full max-w-2xl animate-page-turn">
+        <div className="bg-card border-2 border-sepia rounded-lg p-8 shadow-lg text-center">
+          <p className="text-2xl font-serif text-burgundy mb-4">⚠️ Informations manquantes</p>
+          <p className="text-sepia font-serif italic">
+            Veuillez d'abord sélectionner une équipe et entrer votre nom.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   // Load current level and questions from API
   useEffect(() => {
     if (!sessionId) return

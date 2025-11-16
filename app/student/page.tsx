@@ -19,7 +19,7 @@ export default function StudentPage() {
   const [currentAnswer, setCurrentAnswer] = useState<string>('')
   const [sessionId, setSessionId] = useState<string>('')
 
-  // Check for session ID and restore student state on mount
+  // Check for session ID and ensure proper flow (team -> username -> question)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const sid = urlParams.get('session') || localStorage.getItem('host-session-id')
@@ -28,31 +28,32 @@ export default function StudentPage() {
       setSessionId(sid)
       setHasSession(true)
       
-      // Check if student already has an assignment (restore state)
+      // Check if student already has a complete assignment (team + name)
       const assignment = localStorage.getItem('student-team-assignment')
       if (assignment) {
         try {
           const data = JSON.parse(assignment)
           if (data.sessionId === sid || !data.sessionId) {
-            // Restore student state
-            setSelectedTeam(data.teamId || '')
-            setUsername(data.name || '')
-            
-            // Check if they should go to question view
+            // Only restore if BOTH team and name are present
             if (data.teamId && data.name) {
+              setSelectedTeam(data.teamId)
+              setUsername(data.name)
               setFlow('question')
+              return
             } else if (data.teamId) {
+              // Has team but no name - go to username entry
+              setSelectedTeam(data.teamId)
               setFlow('username')
-            } else {
-              setFlow('team')
+              return
             }
-            return
+            // No team - must select team first
           }
         } catch (e) {
           console.error('Error parsing assignment:', e)
         }
       }
       
+      // Default: start with team selection
       setFlow('team')
     } else {
       // Check if there are any teams available (for backward compatibility)
@@ -70,22 +71,25 @@ export default function StudentPage() {
         if (assignment) {
           try {
             const data = JSON.parse(assignment)
-            setSelectedTeam(data.teamId || '')
-            setUsername(data.name || '')
+            // Only proceed if BOTH team and name exist
             if (data.teamId && data.name) {
+              setSelectedTeam(data.teamId)
+              setUsername(data.name)
               setFlow('question')
+              return
             } else if (data.teamId) {
+              setSelectedTeam(data.teamId)
               setFlow('username')
-            } else {
-              setFlow('team')
+              return
             }
-            return
           } catch (e) {
             // Continue to team selection
           }
         }
         
         setFlow('team')
+      } else {
+        setFlow('session')
       }
     }
   }, [])
@@ -403,15 +407,38 @@ export default function StudentPage() {
       {flow === 'team' && <TeamSelection onSelect={handleTeamSelect} />}
       {flow === 'username' && <UsernameEntry onSubmit={handleUsernameSubmit} team={selectedTeam} />}
       {flow === 'question' && (
-        <QuestionView 
-          username={username} 
-          team={selectedTeam}
-          sessionId={sessionId}
-          onAnswer={(question) => {
-            setCurrentQuestion(question)
-            setFlow('answer')
-          }} 
-        />
+        (username && selectedTeam) ? (
+          <QuestionView 
+            username={username} 
+            team={selectedTeam}
+            sessionId={sessionId}
+            onAnswer={(question) => {
+              setCurrentQuestion(question)
+              setFlow('answer')
+            }} 
+          />
+        ) : (
+          <div className="w-full max-w-md animate-page-turn">
+            <div className="bg-card border-2 border-sepia rounded-lg p-8 shadow-lg text-center">
+              <p className="text-2xl font-serif text-burgundy mb-4">⚠️ Étape manquante</p>
+              <p className="text-sepia font-serif italic mb-4">
+                Vous devez d'abord sélectionner une équipe et entrer votre nom.
+              </p>
+              <button
+                onClick={() => {
+                  if (!selectedTeam) {
+                    setFlow('team')
+                  } else if (!username) {
+                    setFlow('username')
+                  }
+                }}
+                className="px-4 py-2 bg-burgundy text-parchment rounded font-serif hover:bg-burgundy/90"
+              >
+                Continuer
+              </button>
+            </div>
+          </div>
+        )
       )}
       {flow === 'answer' && (
         <AnswerEditor onSubmit={handleAnswerSubmit} question={currentQuestion?.text || 'Aucune question disponible'} />

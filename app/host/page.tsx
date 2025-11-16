@@ -454,12 +454,13 @@ export default function HostPage() {
             students={students}
             showAnswers={showAnswers}
             selectedTeam={selectedTeam}
+            sessionId={sessionId}
           />
         </div>
       </div>
 
       {/* Questions Management Panel - Full Width */}
-      <div className="mt-6">
+      <div className="mt-6" data-questions-panel>
         <QuestionsManagementPanel
           sessionId={sessionId}
           questions={questions}
