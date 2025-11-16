@@ -11,6 +11,7 @@ import ControlButtons from '@/components/host/control-buttons'
 import PinEntry from '@/components/host/pin-entry'
 import QRCodeModal from '@/components/host/qr-code-modal'
 import { supabase } from '@/lib/supabase'
+import { sessionManager } from '@/lib/session-manager'
 
 interface Team {
   id: string
@@ -42,33 +43,60 @@ export default function HostPage() {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [summaryToken, setSummaryToken] = useState('lqisr-summary-' + Math.random().toString(36).substr(2, 9))
 
-  // Get session ID from URL or create one
+  // Get session ID from URL or create one (using new session manager)
   const [sessionId, setSessionId] = useState<string>('')
 
   useEffect(() => {
-    // Get or create session ID
+    // Initialize session using the new session manager
     const urlParams = new URLSearchParams(window.location.search)
-    let sid = urlParams.get('session')
+    const urlSessionId = urlParams.get('session')
     
-    if (!sid) {
-      sid = localStorage.getItem('host-session-id') || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      localStorage.setItem('host-session-id', sid)
-      // Update URL without reload
-      const newUrl = `${window.location.pathname}?session=${sid}`
+    const session = sessionManager.initSession(urlSessionId || undefined)
+    setSessionId(session.id)
+    
+    // Load initial data from session
+    setTeams(session.teams || [])
+    setStudents((session.students || []).map((s: any) => ({
+      ...s,
+      status: (s.status === 'pending' || s.status === 'answered' || s.status === 'submitted') 
+        ? s.status 
+        : 'pending' as 'pending' | 'answered' | 'submitted',
+      lastSeen: s.lastSeen || Date.now(),
+      isOnline: s.lastSeen ? (Date.now() - s.lastSeen) < 30000 : false
+    })))
+    setQuestions(session.questions || [])
+    setCurrentLevel(session.settings?.currentLevel || 'medium')
+    setIsRunning(session.settings?.isRunning || false)
+    
+    // Update URL if needed
+    if (!urlSessionId) {
+      const newUrl = `${window.location.pathname}?session=${session.id}`
       window.history.replaceState({}, '', newUrl)
     }
     
-    setSessionId(sid)
+    // Load from API in background (non-blocking)
+    if (urlSessionId) {
+      sessionManager.loadFromAPI(urlSessionId).then(apiSession => {
+        if (apiSession) {
+          setTeams(apiSession.teams || [])
+          setStudents((apiSession.students || []).map((s: any) => ({
+            ...s,
+            status: (s.status === 'pending' || s.status === 'answered' || s.status === 'submitted') 
+              ? s.status 
+              : 'pending' as 'pending' | 'answered' | 'submitted',
+            lastSeen: s.lastSeen || Date.now(),
+            isOnline: s.lastSeen ? (Date.now() - s.lastSeen) < 30000 : false
+          })))
+          setQuestions(apiSession.questions || [])
+        }
+      })
+    }
   }, [])
 
-  // Load data from localStorage first (immediate), then sync with API
+  // Session data is now managed by sessionManager - loads instantly from memory/localStorage
+
+  // Save settings using session manager (fast, unified)
   useEffect(() => {
-    if (!sessionId) return
-    
-    // Load from localStorage immediately for fast display
-    const savedTeams = localStorage.getItem(`teams-${sessionId}`) || localStorage.getItem('host-teams')
-    if (savedTeams) {
-      try {
         const parsed = JSON.parse(savedTeams)
         if (Array.isArray(parsed) && parsed.length > 0) {
           setTeams(parsed)
@@ -168,95 +196,26 @@ export default function HostPage() {
       }
     }
     
-    syncWithAPI()
-  }, [sessionId])
-
-  // Save current level to API and localStorage
+  // Save settings using session manager (fast, unified)
   useEffect(() => {
     if (!sessionId) return
-    
-    localStorage.setItem(`host-current-level-${sessionId}`, currentLevel)
-    localStorage.setItem('host-current-level', currentLevel)
-    localStorage.setItem(`host-is-running-${sessionId}`, String(isRunning))
-    
-    // Save to API
-    fetch(`/api/settings/${sessionId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        currentLevel,
-        isRunning
-      }),
-    }).catch(error => {
-      console.warn('Failed to save settings to API:', error)
-    })
+    sessionManager.updateSettings({ currentLevel, isRunning })
   }, [currentLevel, isRunning, sessionId])
 
-  // Save teams to API and localStorage (with session ID)
+  // Save teams using session manager (fast, unified)
   useEffect(() => {
     if (!sessionId) return
-    
-    try {
-      // Save to localStorage immediately
-      localStorage.setItem(`teams-${sessionId}`, JSON.stringify(teams))
-      localStorage.setItem('host-teams', JSON.stringify(teams))
-      
-      // Save to API for cross-device sync (debounced)
-      const timeoutId = setTimeout(() => {
-        fetch(`/api/teams/${sessionId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ teams }),
-        }).then(response => {
-          if (response.ok) {
-            console.log('Teams saved to API successfully')
-          }
-        }).catch(error => {
-          console.warn('Failed to save teams to API:', error)
-        })
-      }, 300) // Reduced debounce for faster sync
-      
-      return () => clearTimeout(timeoutId)
-    } catch (error) {
-      console.error('Error saving teams:', error)
-    }
+    sessionManager.updateTeams(teams)
   }, [teams, sessionId])
 
+  // Save students using session manager (fast, unified)
   useEffect(() => {
     if (!sessionId) return
-    
-    try {
-      // Update lastSeen for all students
-      const updatedStudents = students.map(s => ({
-        ...s,
-        lastSeen: s.lastSeen || Date.now()
-      }))
-      
-      // Save to localStorage immediately
-      localStorage.setItem(`students-${sessionId}`, JSON.stringify(updatedStudents))
-      localStorage.setItem('host-students', JSON.stringify(updatedStudents))
-      
-      // Save to API for cross-device sync (debounced)
-      const timeoutId = setTimeout(() => {
-        fetch(`/api/students/${sessionId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ students: updatedStudents }),
-        }).catch(error => {
-          console.warn('Failed to save students to API:', error)
-        })
-      }, 500)
-      
-      return () => clearTimeout(timeoutId)
-    } catch (error) {
-      console.error('Error saving students:', error)
-    }
+    const updatedStudents = students.map(s => ({
+      ...s,
+      lastSeen: s.lastSeen || Date.now()
+    }))
+    sessionManager.updateStudents(updatedStudents)
   }, [students, sessionId])
 
   // Real-time subscriptions for instant updates (teams, students, answers)
