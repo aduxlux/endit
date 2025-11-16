@@ -1,0 +1,2 @@
+# create .gitignore if it doesn't exist, and add node_modules line
+echo node_modules/ > .gitignore 

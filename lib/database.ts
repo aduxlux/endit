@@ -115,30 +115,44 @@ export const teamDb = {
     if (!supabase) {
       throw new Error('Supabase not configured')
     }
-    const { data, error } = await supabase
-      .from('teams')
-      .insert([{ session_id: sessionId, name, emblem, color }])
-      .select()
-      .single()
+    try {
+      const { data, error } = await supabase
+        .from('teams')
+        .insert([{ session_id: sessionId, name, emblem, color }])
+        .select()
+        .single()
 
-    if (error) throw error
-    return data as Team
+      if (error) throw error
+      return data as Team
+    } catch (error: any) {
+      // If it's a duplicate key error, try to get the existing team
+      if (error?.code === '23505' || error?.message?.includes('duplicate')) {
+        const existing = await this.getBySession(sessionId)
+        return existing.find(t => t.name === name && t.session_id === sessionId) as Team
+      }
+      throw error
+    }
   },
 
   async getBySession(sessionId: string) {
     if (!supabase) {
       return [] // Return empty array if Supabase not configured
     }
-    const { data, error } = await supabase
-      .from('teams')
-      .select()
-      .eq('session_id', sessionId)
+    try {
+      const { data, error } = await supabase
+        .from('teams')
+        .select()
+        .eq('session_id', sessionId)
 
-    if (error) {
-      console.warn('Supabase teams fetch failed:', error)
+      if (error) {
+        console.warn('Supabase teams fetch failed:', error)
+        return []
+      }
+      return (data || []) as Team[]
+    } catch (error) {
+      console.warn('Supabase teams fetch error:', error)
       return []
     }
-    return data as Team[]
   },
 }
 
@@ -148,45 +162,64 @@ export const userDb = {
     if (!supabase) {
       throw new Error('Supabase not configured')
     }
-    const { data, error } = await supabase
-      .from('users')
-      .insert([{ session_id: sessionId, team_id: teamId, name }])
-      .select()
-      .single()
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .insert([{ session_id: sessionId, team_id: teamId || null, name }])
+        .select()
+        .single()
 
-    if (error) throw error
-    return data as User
+      if (error) throw error
+      return data as User
+    } catch (error: any) {
+      // If it's a duplicate key error, try to get the existing user
+      if (error?.code === '23505' || error?.message?.includes('duplicate')) {
+        const existing = await this.getBySession(sessionId)
+        return existing.find(u => u.name === name && u.session_id === sessionId) as User
+      }
+      throw error
+    }
   },
 
   async getBySession(sessionId: string) {
     if (!supabase) {
       return [] // Return empty array if Supabase not configured
     }
-    const { data, error } = await supabase
-      .from('users')
-      .select()
-      .eq('session_id', sessionId)
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select()
+        .eq('session_id', sessionId)
 
-    if (error) {
-      console.warn('Supabase users fetch failed:', error)
+      if (error) {
+        console.warn('Supabase users fetch failed:', error)
+        return []
+      }
+      return (data || []) as User[]
+    } catch (error) {
+      console.warn('Supabase users fetch error:', error)
       return []
     }
-    return data as User[]
   },
 
   async updateStatus(userId: string, status: string) {
     if (!supabase) {
       throw new Error('Supabase not configured')
     }
-    const { data, error } = await supabase
-      .from('users')
-      .update({ status, last_seen: new Date().toISOString() })
-      .eq('id', userId)
-      .select()
-      .single()
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .update({ status, last_seen: new Date().toISOString() })
+        .eq('id', userId)
+        .select()
+        .single()
 
-    if (error) throw error
-    return data as User
+      if (error) throw error
+      return data as User
+    } catch (error) {
+      console.warn('Supabase user update failed:', error)
+      throw error
+    }
   },
 }
 

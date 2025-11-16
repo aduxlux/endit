@@ -136,15 +136,48 @@ export default function HostPage() {
       if (savedLevel) {
         setCurrentLevel(savedLevel)
       }
+      
+      // Load settings from API
+      try {
+        const settingsResponse = await fetch(`/api/settings/${sessionId}`)
+        if (settingsResponse.ok) {
+          const settingsData = await settingsResponse.json()
+          if (settingsData.currentLevel) {
+            setCurrentLevel(settingsData.currentLevel)
+            localStorage.setItem('host-current-level', settingsData.currentLevel)
+          }
+          if (settingsData.isRunning !== undefined) {
+            setIsRunning(settingsData.isRunning)
+          }
+        }
+      } catch (settingsError) {
+        console.warn('Failed to load settings from API:', settingsError)
+      }
     }
     
     loadFromAPI()
   }, [sessionId])
 
-  // Save current level to localStorage
+  // Save current level to API and localStorage
   useEffect(() => {
+    if (!sessionId) return
+    
     localStorage.setItem('host-current-level', currentLevel)
-  }, [currentLevel])
+    
+    // Save to API
+    fetch(`/api/settings/${sessionId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        currentLevel,
+        isRunning
+      }),
+    }).catch(error => {
+      console.warn('Failed to save settings to API:', error)
+    })
+  }, [currentLevel, isRunning, sessionId])
 
   // Save teams to API and localStorage (with session ID)
   useEffect(() => {
@@ -205,11 +238,52 @@ export default function HostPage() {
     }
   }, [students, sessionId])
 
-  // Listen for new student answers from student page (using session ID)
+  // Listen for new student answers from API and localStorage (using session ID)
   useEffect(() => {
     if (!sessionId) return
     
-    const handleStorageChange = () => {
+    const loadAnswers = async () => {
+      // Try to load from API first
+      try {
+        const response = await fetch(`/api/answers/${sessionId}`)
+        if (response.ok) {
+          const data = await response.json()
+          if (Array.isArray(data.answers) && data.answers.length > 0) {
+            // Update students with new answers from API
+            setStudents(prev => {
+              const updated = [...prev]
+              data.answers.forEach((answer: { studentId: string; studentName: string; teamId: string; text: string }) => {
+                const studentIndex = updated.findIndex(s => s.id === answer.studentId)
+                if (studentIndex >= 0) {
+                  updated[studentIndex] = {
+                    ...updated[studentIndex],
+                    response: answer.text,
+                    status: 'answered'
+                  }
+                } else {
+                  // Add new student if they don't exist
+                  const team = teams.find(t => t.id === answer.teamId)
+                  if (team) {
+                    updated.push({
+                      id: answer.studentId,
+                      name: answer.studentName,
+                      team: answer.teamId,
+                      status: 'answered',
+                      response: answer.text
+                    })
+                  }
+                }
+              })
+              return updated
+            })
+            return // Successfully loaded from API
+          }
+        }
+      } catch (apiError) {
+        console.warn('Failed to load answers from API:', apiError)
+      }
+      
+      // Fallback to localStorage
       const studentAnswers = localStorage.getItem(`answers-${sessionId}`) || localStorage.getItem('student-answers')
       if (studentAnswers) {
         const answers = JSON.parse(studentAnswers)
@@ -244,16 +318,12 @@ export default function HostPage() {
     }
 
     // Check on mount
-    handleStorageChange()
+    loadAnswers()
 
-    // Listen for storage events (from other tabs/windows)
-    window.addEventListener('storage', handleStorageChange)
-    
-    // Poll for changes (since storage event doesn't fire in same tab)
-    const interval = setInterval(handleStorageChange, 1000)
+    // Poll for changes every 2 seconds
+    const interval = setInterval(loadAnswers, 2000)
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange)
       clearInterval(interval)
     }
   }, [teams, sessionId])
