@@ -10,29 +10,40 @@ export const realtimeHandlers = {
     onUpdate: (session: any) => void,
     onError?: (error: any) => void
   ) {
-    const subscription = supabase
-      .channel(`session:${sessionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'sessions',
-          filter: `id=eq.${sessionId}`,
-        },
-        (payload) => {
-          onUpdate(payload.new)
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log(`[v0] Real-time: Subscribed to session ${sessionId}`)
-        } else if (status === 'CHANNEL_ERROR' && onError) {
-          onError(new Error(`Subscription failed: ${status}`))
-        }
-      })
+    if (!supabase) {
+      console.warn('Supabase not configured, skipping real-time subscription')
+      return null
+    }
 
-    return subscription
+    try {
+      const subscription = supabase
+        .channel(`session:${sessionId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'sessions',
+            filter: `id=eq.${sessionId}`,
+          },
+          (payload) => {
+            onUpdate(payload.new)
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`[v0] Real-time: Subscribed to session ${sessionId}`)
+          } else if (status === 'CHANNEL_ERROR' && onError) {
+            onError(new Error(`Subscription failed: ${status}`))
+          }
+        })
+
+      return subscription
+    } catch (error) {
+      console.warn('Failed to subscribe to session:', error)
+      if (onError) onError(error as Error)
+      return null
+    }
   },
 
   // Subscribe to answers for a question
@@ -42,51 +53,61 @@ export const realtimeHandlers = {
     onUpdate: (answer: any) => void,
     onDelete?: (answer: any) => void
   ) {
-    return supabase
-      .channel(`answers:${questionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'answers',
-          filter: `question_id=eq.${questionId}`,
-        },
-        (payload) => {
-          console.log(`[v0] New answer received for question ${questionId}`)
-          onInsert(payload.new)
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'answers',
-          filter: `question_id=eq.${questionId}`,
-        },
-        (payload) => {
-          console.log(`[v0] Answer updated for question ${questionId}`)
-          onUpdate(payload.new)
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'answers',
-          filter: `question_id=eq.${questionId}`,
-        },
-        (payload) => {
-          if (onDelete) onDelete(payload.old)
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log(`[v0] Real-time: Subscribed to answers for question ${questionId}`)
-        }
-      })
+    if (!supabase) {
+      console.warn('Supabase not configured, skipping real-time subscription')
+      return null
+    }
+
+    try {
+      return supabase
+        .channel(`answers:${questionId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'answers',
+            filter: `question_id=eq.${questionId}`,
+          },
+          (payload) => {
+            console.log(`[v0] New answer received for question ${questionId}`)
+            onInsert(payload.new)
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'answers',
+            filter: `question_id=eq.${questionId}`,
+          },
+          (payload) => {
+            console.log(`[v0] Answer updated for question ${questionId}`)
+            onUpdate(payload.new)
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'answers',
+            filter: `question_id=eq.${questionId}`,
+          },
+          (payload) => {
+            if (onDelete) onDelete(payload.old)
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`[v0] Real-time: Subscribed to answers for question ${questionId}`)
+          }
+        })
+    } catch (error) {
+      console.warn('Failed to subscribe to answers:', error)
+      return null
+    }
   },
 
   // Subscribe to user joins
@@ -94,26 +115,36 @@ export const realtimeHandlers = {
     sessionId: string,
     onUserJoin: (user: any) => void
   ) {
-    return supabase
-      .channel(`users:${sessionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'users',
-          filter: `session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          console.log(`[v0] New user joined session ${sessionId}`)
-          onUserJoin(payload.new)
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log(`[v0] Real-time: Subscribed to user joins for session ${sessionId}`)
-        }
-      })
+    if (!supabase) {
+      console.warn('Supabase not configured, skipping real-time subscription')
+      return null
+    }
+
+    try {
+      return supabase
+        .channel(`users:${sessionId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'users',
+            filter: `session_id=eq.${sessionId}`,
+          },
+          (payload) => {
+            console.log(`[v0] New user joined session ${sessionId}`)
+            onUserJoin(payload.new)
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`[v0] Real-time: Subscribed to user joins for session ${sessionId}`)
+          }
+        })
+    } catch (error) {
+      console.warn('Failed to subscribe to user joins:', error)
+      return null
+    }
   },
 
   // Subscribe to achievements
@@ -121,25 +152,35 @@ export const realtimeHandlers = {
     sessionId: string,
     onAchievement: (achievement: any) => void
   ) {
-    return supabase
-      .channel(`achievements:${sessionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'achievements',
-          filter: `session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          console.log(`[v0] New achievement unlocked in session ${sessionId}`)
-          onAchievement(payload.new)
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log(`[v0] Real-time: Subscribed to achievements for session ${sessionId}`)
-        }
-      })
+    if (!supabase) {
+      console.warn('Supabase not configured, skipping real-time subscription')
+      return null
+    }
+
+    try {
+      return supabase
+        .channel(`achievements:${sessionId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'achievements',
+            filter: `session_id=eq.${sessionId}`,
+          },
+          (payload) => {
+            console.log(`[v0] New achievement unlocked in session ${sessionId}`)
+            onAchievement(payload.new)
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`[v0] Real-time: Subscribed to achievements for session ${sessionId}`)
+          }
+        })
+    } catch (error) {
+      console.warn('Failed to subscribe to achievements:', error)
+      return null
+    }
   },
 }

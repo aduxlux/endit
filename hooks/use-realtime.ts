@@ -13,26 +13,39 @@ export function useRealtimeSubscription(
   const subscriptionRef = useRef<any>(null)
 
   useEffect(() => {
-    subscriptionRef.current = supabase
-      .channel(channel)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table,
-          filter,
-        },
-        (payload) => {
-          console.log(`[v0] Real-time update: ${table} ${payload.eventType}`)
-          onUpdate(payload)
-        }
-      )
-      .subscribe()
+    if (!supabase) {
+      console.warn('Supabase not configured, skipping real-time subscription')
+      return
+    }
+
+    try {
+      subscriptionRef.current = supabase
+        .channel(channel)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table,
+            filter,
+          },
+          (payload) => {
+            console.log(`[v0] Real-time update: ${table} ${payload.eventType}`)
+            onUpdate(payload)
+          }
+        )
+        .subscribe()
+    } catch (error) {
+      console.warn('Failed to set up real-time subscription:', error)
+    }
 
     return () => {
-      if (subscriptionRef.current) {
-        supabase.removeChannel(subscriptionRef.current)
+      if (supabase && subscriptionRef.current) {
+        try {
+          supabase.removeChannel(subscriptionRef.current)
+        } catch (error) {
+          console.warn('Failed to remove channel:', error)
+        }
       }
     }
   }, [channel, table, filter, onUpdate])

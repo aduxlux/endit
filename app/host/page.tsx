@@ -252,129 +252,140 @@ export default function HostPage() {
   useEffect(() => {
     if (!sessionId) return
 
-    // Subscribe to teams changes
-    const teamsChannel = supabase
-      .channel(`host-teams-${sessionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'teams',
-          filter: `session_id=eq.${sessionId}`,
-        },
-        async () => {
-          // Reload teams from API
-          try {
-            const response = await fetch(`/api/teams/${sessionId}`)
-            if (response.ok) {
-              const data = await response.json()
-              if (Array.isArray(data.teams)) {
-                setTeams(data.teams)
-                localStorage.setItem(`teams-${sessionId}`, JSON.stringify(data.teams))
-                localStorage.setItem('host-teams', JSON.stringify(data.teams))
-              }
-            }
-          } catch (error) {
-            console.warn('Failed to reload teams:', error)
-          }
-        }
-      )
-      .subscribe()
+    // Only set up real-time if Supabase is configured
+    let teamsChannel: any = null
+    let studentsChannel: any = null
+    let answersChannel: any = null
 
-    // Subscribe to students/users changes
-    const studentsChannel = supabase
-      .channel(`host-students-${sessionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'users',
-          filter: `session_id=eq.${sessionId}`,
-        },
-        async () => {
-          // Reload students from API
-          try {
-            const response = await fetch(`/api/students/${sessionId}`)
-            if (response.ok) {
-              const data = await response.json()
-              if (Array.isArray(data.students)) {
-                const validStudents: Student[] = data.students.map((s: any) => ({
-                  ...s,
-                  status: (s.status === 'pending' || s.status === 'answered' || s.status === 'submitted') 
-                    ? s.status 
-                    : 'pending' as 'pending' | 'answered' | 'submitted',
-                  lastSeen: s.lastSeen ? new Date(s.lastSeen).getTime() : Date.now(),
-                  isOnline: s.lastSeen ? (Date.now() - new Date(s.lastSeen).getTime()) < 30000 : false
-                }))
-                setStudents(validStudents)
-                localStorage.setItem(`students-${sessionId}`, JSON.stringify(validStudents))
-                localStorage.setItem('host-students', JSON.stringify(validStudents))
+    if (supabase) {
+      try {
+        // Subscribe to teams changes
+        teamsChannel = supabase
+          .channel(`host-teams-${sessionId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'teams',
+              filter: `session_id=eq.${sessionId}`,
+            },
+            async () => {
+              // Reload teams from API
+              try {
+                const response = await fetch(`/api/teams/${sessionId}`)
+                if (response.ok) {
+                  const data = await response.json()
+                  if (Array.isArray(data.teams)) {
+                    setTeams(data.teams)
+                    localStorage.setItem(`teams-${sessionId}`, JSON.stringify(data.teams))
+                    localStorage.setItem('host-teams', JSON.stringify(data.teams))
+                  }
+                }
+              } catch (error) {
+                console.warn('Failed to reload teams:', error)
               }
             }
-          } catch (error) {
-            console.warn('Failed to reload students:', error)
-          }
-        }
-      )
-      .subscribe()
+          )
+          .subscribe()
 
-    // Subscribe to answers changes
-    const answersChannel = supabase
-      .channel(`host-answers-${sessionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'answers',
-          filter: `session_id=eq.${sessionId}`,
-        },
-        async () => {
-          // Reload answers and update students
-          try {
-            const response = await fetch(`/api/answers/${sessionId}`)
-            if (response.ok) {
-              const data = await response.json()
-              if (Array.isArray(data.answers) && data.answers.length > 0) {
-                // Update students with new answers
-                setStudents(prev => {
-                  const updated = [...prev]
-                  data.answers.forEach((answer: { studentId: string; studentName: string; teamId: string; text: string }) => {
-                    const studentIndex = updated.findIndex(s => s.id === answer.studentId)
-                    if (studentIndex >= 0) {
-                      updated[studentIndex] = {
-                        ...updated[studentIndex],
-                        response: answer.text,
-                        status: 'answered'
-                      }
-                    } else {
-                      // Add new student if they don't exist
-                      const team = teams.find(t => t.id === answer.teamId)
-                      if (team) {
-                        updated.push({
-                          id: answer.studentId,
-                          name: answer.studentName,
-                          team: answer.teamId,
-                          status: 'answered',
-                          response: answer.text,
-                          lastSeen: Date.now(),
-                          isOnline: true
-                        })
-                      }
-                    }
-                  })
-                  return updated
-                })
+        // Subscribe to students/users changes
+        studentsChannel = supabase
+          .channel(`host-students-${sessionId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'users',
+              filter: `session_id=eq.${sessionId}`,
+            },
+            async () => {
+              // Reload students from API
+              try {
+                const response = await fetch(`/api/students/${sessionId}`)
+                if (response.ok) {
+                  const data = await response.json()
+                  if (Array.isArray(data.students)) {
+                    const validStudents: Student[] = data.students.map((s: any) => ({
+                      ...s,
+                      status: (s.status === 'pending' || s.status === 'answered' || s.status === 'submitted') 
+                        ? s.status 
+                        : 'pending' as 'pending' | 'answered' | 'submitted',
+                      lastSeen: s.lastSeen ? new Date(s.lastSeen).getTime() : Date.now(),
+                      isOnline: s.lastSeen ? (Date.now() - new Date(s.lastSeen).getTime()) < 30000 : false
+                    }))
+                    setStudents(validStudents)
+                    localStorage.setItem(`students-${sessionId}`, JSON.stringify(validStudents))
+                    localStorage.setItem('host-students', JSON.stringify(validStudents))
+                  }
+                }
+              } catch (error) {
+                console.warn('Failed to reload students:', error)
               }
             }
-          } catch (error) {
-            console.warn('Failed to reload answers:', error)
-          }
-        }
-      )
-      .subscribe()
+          )
+          .subscribe()
+
+        // Subscribe to answers changes
+        answersChannel = supabase
+          .channel(`host-answers-${sessionId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'answers',
+              filter: `session_id=eq.${sessionId}`,
+            },
+            async () => {
+              // Reload answers and update students
+              try {
+                const response = await fetch(`/api/answers/${sessionId}`)
+                if (response.ok) {
+                  const data = await response.json()
+                  if (Array.isArray(data.answers) && data.answers.length > 0) {
+                    // Update students with new answers
+                    setStudents(prev => {
+                      const updated = [...prev]
+                      data.answers.forEach((answer: { studentId: string; studentName: string; teamId: string; text: string }) => {
+                        const studentIndex = updated.findIndex(s => s.id === answer.studentId)
+                        if (studentIndex >= 0) {
+                          updated[studentIndex] = {
+                            ...updated[studentIndex],
+                            response: answer.text,
+                            status: 'answered'
+                          }
+                        } else {
+                          // Add new student if they don't exist
+                          const team = teams.find(t => t.id === answer.teamId)
+                          if (team) {
+                            updated.push({
+                              id: answer.studentId,
+                              name: answer.studentName,
+                              team: answer.teamId,
+                              status: 'answered',
+                              response: answer.text,
+                              lastSeen: Date.now(),
+                              isOnline: true
+                            })
+                          }
+                        }
+                      })
+                      return updated
+                    })
+                  }
+                }
+              } catch (error) {
+                console.warn('Failed to reload answers:', error)
+              }
+            }
+          )
+          .subscribe()
+      } catch (error) {
+        console.warn('Failed to set up real-time subscriptions:', error)
+      }
+    }
 
     // Also poll for answers as fallback (in case real-time doesn't work)
     const loadAnswers = async () => {
@@ -423,9 +434,27 @@ export default function HostPage() {
     const pollInterval = setInterval(loadAnswers, 3000)
 
     return () => {
-      supabase.removeChannel(teamsChannel)
-      supabase.removeChannel(studentsChannel)
-      supabase.removeChannel(answersChannel)
+      if (supabase && teamsChannel) {
+        try {
+          supabase.removeChannel(teamsChannel)
+        } catch (e) {
+          console.warn('Failed to remove teams channel:', e)
+        }
+      }
+      if (supabase && studentsChannel) {
+        try {
+          supabase.removeChannel(studentsChannel)
+        } catch (e) {
+          console.warn('Failed to remove students channel:', e)
+        }
+      }
+      if (supabase && answersChannel) {
+        try {
+          supabase.removeChannel(answersChannel)
+        } catch (e) {
+          console.warn('Failed to remove answers channel:', e)
+        }
+      }
       clearInterval(pollInterval)
     }
   }, [sessionId, teams])

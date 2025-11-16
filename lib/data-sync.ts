@@ -184,43 +184,74 @@ export const subscribeToSession = (
   }
 
   // Use Supabase real-time
-  const teamsChannel = supabase
-    .channel(`teams:${sessionId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'teams',
-        filter: `session_id=eq.${sessionId}`,
-      },
-      async () => {
-        const teams = await teamsSync.get(sessionId)
-        onTeamsUpdate(teams)
-      }
-    )
-    .subscribe()
+  if (!supabase) {
+    // Fallback: poll localStorage changes
+    const interval = setInterval(async () => {
+      const teams = await teamsSync.get(sessionId)
+      const students = await studentsSync.get(sessionId)
+      onTeamsUpdate(teams)
+      onStudentsUpdate(students)
+    }, 2000) // Poll every 2 seconds
+    
+    return () => clearInterval(interval)
+  }
 
-  const studentsChannel = supabase
-    .channel(`students:${sessionId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'users',
-        filter: `session_id=eq.${sessionId}`,
-      },
-      async () => {
-        const students = await studentsSync.get(sessionId)
-        onStudentsUpdate(students)
-      }
-    )
-    .subscribe()
+  let teamsChannel: any = null
+  let studentsChannel: any = null
+
+  try {
+    teamsChannel = supabase
+      .channel(`teams:${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'teams',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        async () => {
+          const teams = await teamsSync.get(sessionId)
+          onTeamsUpdate(teams)
+        }
+      )
+      .subscribe()
+
+    studentsChannel = supabase
+      .channel(`students:${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'users',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        async () => {
+          const students = await studentsSync.get(sessionId)
+          onStudentsUpdate(students)
+        }
+      )
+      .subscribe()
+  } catch (error) {
+    console.warn('Failed to set up real-time subscriptions:', error)
+  }
 
   return () => {
-    supabase.removeChannel(teamsChannel)
-    supabase.removeChannel(studentsChannel)
+    if (supabase && teamsChannel) {
+      try {
+        supabase.removeChannel(teamsChannel)
+      } catch (e) {
+        console.warn('Failed to remove teams channel:', e)
+      }
+    }
+    if (supabase && studentsChannel) {
+      try {
+        supabase.removeChannel(studentsChannel)
+      } catch (e) {
+        console.warn('Failed to remove students channel:', e)
+      }
+    }
   }
 }
 
