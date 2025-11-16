@@ -54,17 +54,92 @@ export default function AnswersPage() {
           }
         }
         
+        // Also check students' responses from host's student list
+        if (sid) {
+          try {
+            const studentsResponse = await fetch(`/api/students/${sid}`)
+            if (studentsResponse.ok) {
+              const studentsData = await studentsResponse.json()
+              if (Array.isArray(studentsData.students)) {
+                studentsData.students.forEach((student: any) => {
+                  if (student.response && student.response.trim().length > 0) {
+                    // Check if this answer already exists
+                    const exists = studentAnswers.find((a: any) => 
+                      a.studentId === student.id && a.text === student.response
+                    )
+                    if (!exists) {
+                      studentAnswers.push({
+                        id: `answer-${student.id}-${Date.now()}`,
+                        studentId: student.id,
+                        studentName: student.name,
+                        teamId: student.team || '',
+                        text: student.response,
+                        timestamp: new Date().toISOString()
+                      })
+                    }
+                  }
+                })
+              }
+            }
+          } catch (studentsError) {
+            console.warn('Failed to load students:', studentsError)
+          }
+        }
+        
         // Fallback to localStorage
         if (studentAnswers.length === 0) {
           if (sid) {
             const sessionAnswers = localStorage.getItem(`answers-${sid}`)
             if (sessionAnswers) {
-              studentAnswers = JSON.parse(sessionAnswers)
+              try {
+                const parsed = JSON.parse(sessionAnswers)
+                if (Array.isArray(parsed)) {
+                  studentAnswers = parsed
+                }
+              } catch (e) {
+                console.warn('Failed to parse session answers:', e)
+              }
             }
           }
           if (studentAnswers.length === 0) {
-            studentAnswers = JSON.parse(localStorage.getItem('student-answers') || '[]')
+            const oldAnswers = localStorage.getItem('student-answers')
+            if (oldAnswers) {
+              try {
+                const parsed = JSON.parse(oldAnswers)
+                if (Array.isArray(parsed)) {
+                  studentAnswers = parsed
+                }
+              } catch (e) {
+                console.warn('Failed to parse old answers:', e)
+              }
+            }
           }
+        }
+        
+        // Also check host's student list from localStorage
+        if (sid) {
+          const hostStudents = JSON.parse(
+            localStorage.getItem(`students-${sid}`) || 
+            localStorage.getItem('host-students') || 
+            '[]'
+          )
+          hostStudents.forEach((student: any) => {
+            if (student.response && student.response.trim().length > 0) {
+              const exists = studentAnswers.find((a: any) => 
+                a.studentId === student.id && a.text === student.response
+              )
+              if (!exists) {
+                studentAnswers.push({
+                  id: `answer-${student.id}-${Date.now()}`,
+                  studentId: student.id,
+                  studentName: student.name,
+                  teamId: student.team || '',
+                  text: student.response,
+                  timestamp: new Date().toISOString()
+                })
+              }
+            }
+          })
         }
         
         // Get teams (try session-specific first)
@@ -86,12 +161,12 @@ export default function AnswersPage() {
         if (teams.length === 0) {
           if (sid) {
             const sessionTeams = localStorage.getItem(`teams-${sid}`)
-            if (sessionTeams) {
-              teams = JSON.parse(sessionTeams)
-            }
+          if (sessionTeams) {
+            teams = JSON.parse(sessionTeams)
           }
-          if (teams.length === 0) {
-            teams = JSON.parse(localStorage.getItem('host-teams') || '[]')
+        }
+        if (teams.length === 0) {
+          teams = JSON.parse(localStorage.getItem('host-teams') || '[]')
           }
         }
         

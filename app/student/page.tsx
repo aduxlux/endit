@@ -94,42 +94,34 @@ export default function StudentPage() {
     }
   }, [])
 
-  // Check if student already has a team assigned (by host) - but still require username entry
+  // Continuously check if student has team and name - redirect if missing
   useEffect(() => {
     if (!hasSession) return
     
-    const checkTeamAssignment = () => {
+    const checkTeamAndName = () => {
       try {
         // Get session ID from URL
         const urlParams = new URLSearchParams(window.location.search)
         const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id')
         
         const studentTeamData = localStorage.getItem('student-team-assignment')
+        let hasTeam = false
+        let hasName = false
+        
         if (studentTeamData) {
           const data = JSON.parse(studentTeamData)
+          hasTeam = !!data.teamId
+          hasName = !!data.name
           
-          // Check if student has BOTH team AND name in assignment
-          if (data.teamId && data.name) {
-            // Student is fully registered, can proceed to questions
+          if (hasTeam) {
             setSelectedTeam(data.teamId)
+          }
+          if (hasName) {
             setUsername(data.name)
-            // Only go to question if we're not already in a flow
-            if (flow === 'team' || flow === 'username') {
-              setFlow('question')
-            }
-            return
-          } else if (data.teamId && !data.name) {
-            // Has team but no name - must enter username
-            setSelectedTeam(data.teamId)
-            if (flow !== 'username' && flow !== 'question') {
-              setFlow('username')
-            }
-            return
           }
         }
         
-        // Check host's student list for team assignment (host can assign team)
-        // Try session-specific first, then fallback
+        // Also check host's student list
         let hostStudents = []
         if (sessionId) {
           const sessionStudents = localStorage.getItem(`students-${sessionId}`)
@@ -141,29 +133,52 @@ export default function StudentPage() {
           hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
         }
         
-        const existingAssignment = localStorage.getItem('student-team-assignment')
-        if (existingAssignment) {
-          const assignmentData = JSON.parse(existingAssignment)
+        if (studentTeamData) {
+          const assignmentData = JSON.parse(studentTeamData)
           const existingStudent = hostStudents.find((s: any) => s.id === assignmentData.studentId)
           
-          if (existingStudent && existingStudent.team) {
-            // Host assigned a team, but student still needs to enter name
-            setSelectedTeam(existingStudent.team)
-            if (!assignmentData.name && flow !== 'username' && flow !== 'question') {
-              setFlow('username')
+          if (existingStudent) {
+            if (existingStudent.team) {
+              hasTeam = true
+              setSelectedTeam(existingStudent.team)
+            }
+            if (existingStudent.name) {
+              hasName = true
+              setUsername(existingStudent.name)
             }
           }
         }
+        
+        // If we're on question/answer/confirmation flow but missing team or name, redirect
+        if ((flow === 'question' || flow === 'answer' || flow === 'confirmation')) {
+          if (!hasTeam || !hasName) {
+            if (!hasTeam) {
+              setFlow('team')
+            } else if (!hasName) {
+              setFlow('username')
+            }
+            return
+          }
+        }
+        
+        // If we have both, allow proceeding to questions
+        if (hasTeam && hasName && (flow === 'team' || flow === 'username')) {
+          setFlow('question')
+        } else if (hasTeam && !hasName && flow !== 'username' && flow !== 'question') {
+          setFlow('username')
+        } else if (!hasTeam && flow !== 'team') {
+          setFlow('team')
+        }
       } catch (error) {
-        console.error('Error checking team assignment:', error)
+        console.error('Error checking team and name:', error)
       }
     }
     
-    checkTeamAssignment()
-    // Poll for team changes from host (less frequently)
-    const interval = setInterval(checkTeamAssignment, 2000)
+    checkTeamAndName()
+    // Check continuously every 2 seconds
+    const interval = setInterval(checkTeamAndName, 2000)
     return () => clearInterval(interval)
-  }, [hasSession, flow])
+  }, [hasSession, flow, selectedTeam, username])
 
   const handleTeamSelect = (teamId: string) => {
     setSelectedTeam(teamId)
@@ -250,12 +265,12 @@ export default function StudentPage() {
           isOnline: true
         })
       }
-      
-      // Save to both session-specific and old key
-      if (sessionId) {
-        localStorage.setItem(`students-${sessionId}`, JSON.stringify(hostStudents))
-      }
-      localStorage.setItem('host-students', JSON.stringify(hostStudents))
+        
+        // Save to both session-specific and old key
+        if (sessionId) {
+          localStorage.setItem(`students-${sessionId}`, JSON.stringify(hostStudents))
+        }
+        localStorage.setItem('host-students', JSON.stringify(hostStudents))
       
       // Save to API
       fetch(`/api/students/${sessionId}`, {
@@ -433,15 +448,15 @@ export default function StudentPage() {
       {flow === 'username' && <UsernameEntry onSubmit={handleUsernameSubmit} team={selectedTeam} />}
       {flow === 'question' && (
         (username && selectedTeam) ? (
-          <QuestionView 
-            username={username} 
-            team={selectedTeam}
+        <QuestionView 
+          username={username} 
+          team={selectedTeam} 
             sessionId={sessionId}
             onAnswer={(question) => {
               setCurrentQuestion(question)
-              setFlow('answer')
-            }} 
-          />
+            setFlow('answer')
+          }} 
+        />
         ) : (
           <div className="w-full max-w-md animate-page-turn">
             <div className="bg-card border-2 border-sepia rounded-lg p-8 shadow-lg text-center">

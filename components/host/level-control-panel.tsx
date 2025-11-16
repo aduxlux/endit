@@ -39,7 +39,7 @@ export default function LevelControlPanel({
     setIsChanging(true)
     onLevelChange(newLevel)
     
-    // Save to API immediately
+    // Save to API immediately - preserve isRunning state, don't reset it
     if (sessionId) {
       fetch(`/api/settings/${sessionId}`, {
         method: 'POST',
@@ -48,7 +48,7 @@ export default function LevelControlPanel({
         },
         body: JSON.stringify({
           currentLevel: newLevel,
-          isRunning
+          isRunning: isRunning // Keep the current running state
         }),
       }).catch(error => {
         console.warn('Failed to save level change:', error)
@@ -166,18 +166,18 @@ export default function LevelControlPanel({
           {LEVELS.map((level) => {
             const isActive = currentLevel === level.id
             return (
-              <button
-                key={level.id}
+            <button
+              key={level.id}
                 onClick={() => handleLevelChange(level.id)}
                 className={`p-3 rounded-md border-2 transition-all transform hover:scale-105 ${
                   isActive
                     ? `${LEVEL_COLORS[level.color as keyof typeof LEVEL_COLORS]} shadow-lg scale-105`
                     : 'border-muted hover:border-sepia bg-background'
-                }`}
-              >
-                <span className="block text-2xl mb-1">{level.icon}</span>
+              }`}
+            >
+              <span className="block text-2xl mb-1">{level.icon}</span>
                 <span className="text-xs font-serif font-semibold">{level.label}</span>
-              </button>
+            </button>
             )
           })}
         </div>

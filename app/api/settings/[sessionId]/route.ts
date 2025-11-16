@@ -47,7 +47,7 @@ export async function POST(
     
     const settings = {
       currentLevel: currentLevel || 'medium',
-      isRunning: isRunning || false
+      isRunning: isRunning !== undefined ? isRunning : false // Preserve false values
     }
     
     // Try to save to database

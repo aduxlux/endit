@@ -142,20 +142,28 @@ export default function HostPage() {
           }
       }
       
-      // Load settings from API
-        const settingsResponse = await fetch(`/api/settings/${sessionId}`)
-        if (settingsResponse.ok) {
-          const settingsData = await settingsResponse.json()
-          if (settingsData.currentLevel) {
+      // Load settings from API (but don't override if user just changed it)
+      const settingsResponse = await fetch(`/api/settings/${sessionId}`)
+      if (settingsResponse.ok) {
+        const settingsData = await settingsResponse.json()
+        if (settingsData.currentLevel) {
+          // Only update if it's different and we haven't manually set it
+          const savedLevel = localStorage.getItem(`host-current-level-${sessionId}`) || localStorage.getItem('host-current-level')
+          if (!savedLevel || savedLevel !== settingsData.currentLevel) {
             setCurrentLevel(settingsData.currentLevel)
             localStorage.setItem(`host-current-level-${sessionId}`, settingsData.currentLevel)
             localStorage.setItem('host-current-level', settingsData.currentLevel)
           }
-          if (settingsData.isRunning !== undefined) {
+        }
+        if (settingsData.isRunning !== undefined) {
+          // Only update if it's different and we haven't manually set it
+          const savedRunning = localStorage.getItem(`host-is-running-${sessionId}`)
+          if (savedRunning === null || savedRunning !== String(settingsData.isRunning)) {
             setIsRunning(settingsData.isRunning)
             localStorage.setItem(`host-is-running-${sessionId}`, String(settingsData.isRunning))
           }
         }
+      }
       } catch (error) {
         console.warn('Failed to sync with API:', error)
       }

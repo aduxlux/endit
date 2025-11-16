@@ -257,14 +257,14 @@ export default function TeamsPanel({
                             <div className="w-2 h-2 rounded-full bg-green-500" />
                           )}
                         </div>
-                        <button
-                          onClick={() => handleRemoveMember(student.id, team.id)}
-                          className="text-red-600 hover:text-red-800"
+                      <button
+                        onClick={() => handleRemoveMember(student.id, team.id)}
+                        className="text-red-600 hover:text-red-800"
                           title="Retirer de l'équipe"
-                        >
+                      >
                           ✕
-                        </button>
-                      </div>
+                      </button>
+                    </div>
                     ))
                   )}
                   {unassignedStudents.length > 0 && (
