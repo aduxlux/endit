@@ -40,21 +40,20 @@ export default function StudentPage() {
               setUsername(data.name)
               setFlow('question')
               return
-            } else if (data.teamId) {
-              // Has team but no name - go to username entry
-              setSelectedTeam(data.teamId)
-              setFlow('username')
+            } else {
+              // Missing team or name - redirect to login
+              window.location.href = `/studentlogin?session=${sid}`
               return
             }
-            // No team - must select team first
           }
         } catch (e) {
           console.error('Error parsing assignment:', e)
         }
       }
       
-      // Default: start with team selection
-      setFlow('team')
+      // No assignment - redirect to login
+      window.location.href = `/studentlogin?session=${sid}`
+      return
     } else {
       // Check if there are any teams available (for backward compatibility)
       const hasTeams = localStorage.getItem('host-teams') || 
@@ -77,19 +76,23 @@ export default function StudentPage() {
               setUsername(data.name)
               setFlow('question')
               return
-            } else if (data.teamId) {
-              setSelectedTeam(data.teamId)
-              setFlow('username')
+            } else {
+              // Missing team or name - redirect to login
+              window.location.href = `/studentlogin?session=${sid}`
               return
             }
           } catch (e) {
-            // Continue to team selection
+            // Continue to login
           }
         }
         
-        setFlow('team')
+        // No assignment - redirect to login
+        window.location.href = `/studentlogin?session=${sid}`
+        return
       } else {
-        setFlow('session')
+        // No session - redirect to login
+        window.location.href = '/studentlogin'
+        return
       }
     }
   }, [])
@@ -149,14 +152,12 @@ export default function StudentPage() {
           }
         }
         
-        // If we're on question/answer/confirmation flow but missing team or name, redirect
+        // If we're on question/answer/confirmation flow but missing team or name, redirect to login
         if ((flow === 'question' || flow === 'answer' || flow === 'confirmation')) {
           if (!hasTeam || !hasName) {
-            if (!hasTeam) {
-              setFlow('team')
-            } else if (!hasName) {
-              setFlow('username')
-            }
+            const urlParams = new URLSearchParams(window.location.search)
+            const sid = urlParams.get('session') || localStorage.getItem('host-session-id')
+            window.location.href = `/studentlogin?session=${sid || ''}`
             return
           }
         }
@@ -164,10 +165,11 @@ export default function StudentPage() {
         // If we have both, allow proceeding to questions
         if (hasTeam && hasName && (flow === 'team' || flow === 'username')) {
           setFlow('question')
-        } else if (hasTeam && !hasName && flow !== 'username' && flow !== 'question') {
-          setFlow('username')
-        } else if (!hasTeam && flow !== 'team') {
-          setFlow('team')
+        } else if (!hasTeam || !hasName) {
+          // Missing team or name - redirect to login
+          const urlParams = new URLSearchParams(window.location.search)
+          const sid = urlParams.get('session') || localStorage.getItem('host-session-id')
+          window.location.href = `/studentlogin?session=${sid || ''}`
         }
       } catch (error) {
         console.error('Error checking team and name:', error)

@@ -19,7 +19,8 @@ function IntroContent() {
 
     // Auto-redirect after 4 seconds
     const redirectTimer = setTimeout(() => {
-      router.push(redirectPath)
+      const finalPath = role === 'student' ? '/studentlogin' : '/host'
+      router.push(finalPath)
     }, 4000)
 
     return () => {
@@ -30,7 +31,7 @@ function IntroContent() {
 
   const handleSkip = () => {
     const role = searchParams.get('role') || 'host'
-    const redirectPath = role === 'student' ? '/student' : '/host'
+    const redirectPath = role === 'student' ? '/studentlogin' : '/host'
     router.push(redirectPath)
   }
 

@@ -514,6 +514,17 @@ export default function HostPage() {
   // Hotkey handler
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
+      // Don't handle hotkeys if user is typing in an input, textarea, or contenteditable element
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        (target.closest('input') || target.closest('textarea') || target.closest('[contenteditable="true"]'))
+      ) {
+        return
+      }
+
       if (e.key === 'n' || e.key === 'N') {
         setCurrentLevel(prev => {
           const levels = ['easy', 'medium', 'hard']
