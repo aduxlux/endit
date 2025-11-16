@@ -19,7 +19,7 @@ export default function StudentPage() {
   const [currentAnswer, setCurrentAnswer] = useState<string>('')
   const [sessionId, setSessionId] = useState<string>('')
 
-  // Check for session ID on mount
+  // Check for session ID and restore student state on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const sid = urlParams.get('session') || localStorage.getItem('host-session-id')
@@ -27,6 +27,32 @@ export default function StudentPage() {
     if (sid) {
       setSessionId(sid)
       setHasSession(true)
+      
+      // Check if student already has an assignment (restore state)
+      const assignment = localStorage.getItem('student-team-assignment')
+      if (assignment) {
+        try {
+          const data = JSON.parse(assignment)
+          if (data.sessionId === sid || !data.sessionId) {
+            // Restore student state
+            setSelectedTeam(data.teamId || '')
+            setUsername(data.name || '')
+            
+            // Check if they should go to question view
+            if (data.teamId && data.name) {
+              setFlow('question')
+            } else if (data.teamId) {
+              setFlow('username')
+            } else {
+              setFlow('team')
+            }
+            return
+          }
+        } catch (e) {
+          console.error('Error parsing assignment:', e)
+        }
+      }
+      
       setFlow('team')
     } else {
       // Check if there are any teams available (for backward compatibility)
@@ -38,6 +64,27 @@ export default function StudentPage() {
         const sid = localStorage.getItem('host-session-id') || 'default-session'
         setSessionId(sid)
         setHasSession(true)
+        
+        // Check for existing assignment
+        const assignment = localStorage.getItem('student-team-assignment')
+        if (assignment) {
+          try {
+            const data = JSON.parse(assignment)
+            setSelectedTeam(data.teamId || '')
+            setUsername(data.name || '')
+            if (data.teamId && data.name) {
+              setFlow('question')
+            } else if (data.teamId) {
+              setFlow('username')
+            } else {
+              setFlow('team')
+            }
+            return
+          } catch (e) {
+            // Continue to team selection
+          }
+        }
+        
         setFlow('team')
       }
     }
@@ -101,12 +148,26 @@ export default function StudentPage() {
     const urlParams = new URLSearchParams(window.location.search)
     const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id') || 'default-session'
     
+    // Check if student already exists
+    let studentId = `student-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const existingAssignment = localStorage.getItem('student-team-assignment')
+    if (existingAssignment) {
+      try {
+        const data = JSON.parse(existingAssignment)
+        if (data.studentId) {
+          studentId = data.studentId
+        }
+      } catch (e) {
+        // Use new ID
+      }
+    }
+    
     // Save student's team assignment to localStorage (they can only join once)
-    const studentId = `student-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     localStorage.setItem('student-team-assignment', JSON.stringify({
       studentId,
       name,
       teamId: selectedTeam,
+      sessionId,
       timestamp: Date.now()
     }))
     
@@ -137,27 +198,93 @@ export default function StudentPage() {
     const team = teams.find((t: any) => t.id === selectedTeam)
     
     if (team) {
-      // Check if student with same name already exists
-      const existingIndex = hostStudents.findIndex((s: any) => s.name === name && s.team === selectedTeam)
-      if (existingIndex < 0) {
+      // Check if student with same ID already exists
+      const existingIndex = hostStudents.findIndex((s: any) => s.id === studentId)
+      if (existingIndex >= 0) {
+        // Update existing student
+        hostStudents[existingIndex] = {
+          ...hostStudents[existingIndex],
+          name,
+          team: selectedTeam,
+          lastSeen: Date.now(),
+          isOnline: true
+        }
+      } else {
+        // Add new student
         hostStudents.push({
           id: studentId,
           name,
           team: selectedTeam,
           status: 'pending',
-          response: ''
+          response: '',
+          lastSeen: Date.now(),
+          isOnline: true
         })
-        
-        // Save to both session-specific and old key
-        if (sessionId) {
-          localStorage.setItem(`students-${sessionId}`, JSON.stringify(hostStudents))
-        }
-        localStorage.setItem('host-students', JSON.stringify(hostStudents))
       }
+      
+      // Save to both session-specific and old key
+      if (sessionId) {
+        localStorage.setItem(`students-${sessionId}`, JSON.stringify(hostStudents))
+      }
+      localStorage.setItem('host-students', JSON.stringify(hostStudents))
+      
+      // Save to API
+      fetch(`/api/students/${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ students: hostStudents }),
+      }).catch(err => console.warn('Failed to save student to API:', err))
     }
     
     setFlow('question')
   }
+  
+  // Update lastSeen periodically to show as online
+  useEffect(() => {
+    if (!sessionId || !username) return
+    
+    const updateLastSeen = () => {
+      const assignment = localStorage.getItem('student-team-assignment')
+      if (!assignment) return
+      
+      try {
+        const data = JSON.parse(assignment)
+        if (data.studentId) {
+          // Update student's lastSeen in host's list
+          let hostStudents = []
+          if (sessionId) {
+            const sessionStudents = localStorage.getItem(`students-${sessionId}`)
+            if (sessionStudents) {
+              hostStudents = JSON.parse(sessionStudents)
+            }
+          }
+          if (hostStudents.length === 0) {
+            hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
+          }
+          
+          const studentIndex = hostStudents.findIndex((s: any) => s.id === data.studentId)
+          if (studentIndex >= 0) {
+            hostStudents[studentIndex] = {
+              ...hostStudents[studentIndex],
+              lastSeen: Date.now(),
+              isOnline: true
+            }
+            
+            if (sessionId) {
+              localStorage.setItem(`students-${sessionId}`, JSON.stringify(hostStudents))
+            }
+            localStorage.setItem('host-students', JSON.stringify(hostStudents))
+          }
+        }
+      } catch (e) {
+        console.error('Error updating lastSeen:', e)
+      }
+    }
+    
+    updateLastSeen()
+    const interval = setInterval(updateLastSeen, 10000) // Update every 10 seconds
+    return () => clearInterval(interval)
+  }, [sessionId, username])
 
   const handleAnswerSubmit = async (answer: string) => {
     setCurrentAnswer(answer)

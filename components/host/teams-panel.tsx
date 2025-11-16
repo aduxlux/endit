@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Trash2, Edit2, Users, X, Check } from 'lucide-react'
+// Icons replaced with emoji/text for simplicity
 
 interface Team {
   id: string
@@ -199,44 +199,44 @@ export default function TeamsPanel({
                     <>
                       <button
                         onClick={handleSaveEdit}
-                        className="p-1 hover:bg-muted rounded"
-                        title="Save"
+                        className="p-1 hover:bg-muted rounded text-green-600"
+                        title="Enregistrer"
                       >
-                        <Check className="w-4 h-4 text-green-600" />
+                        ✓
                       </button>
                       <button
                         onClick={() => {
                           setEditingTeam(null)
                           setNewTeamName('')
                         }}
-                        className="p-1 hover:bg-muted rounded"
-                        title="Cancel"
+                        className="p-1 hover:bg-muted rounded text-muted-foreground"
+                        title="Annuler"
                       >
-                        <X className="w-4 h-4 text-muted-foreground" />
+                        ✕
                       </button>
                     </>
                   ) : (
                     <>
                       <button
                         onClick={() => setShowTeamMembers(isExpanded ? null : team.id)}
-                        className="p-1 hover:bg-muted rounded"
-                        title="Manage members"
+                        className="p-1 hover:bg-muted rounded text-muted-foreground"
+                        title="Gérer les membres"
                       >
-                        <Users className="w-4 h-4 text-muted-foreground" />
+                        👥
                       </button>
                       <button
                         onClick={() => handleEditTeam(team.id)}
-                        className="p-1 hover:bg-muted rounded"
-                        title="Edit team"
+                        className="p-1 hover:bg-muted rounded text-muted-foreground"
+                        title="Modifier l'équipe"
                       >
-                        <Edit2 className="w-4 h-4 text-muted-foreground" />
+                        ✏️
                       </button>
                       <button
                         onClick={() => handleDeleteTeam(team.id)}
                         className="p-1 hover:bg-muted rounded text-red-600"
-                        title="Delete team"
+                        title="Supprimer l'équipe"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        🗑️
                       </button>
                     </>
                   )}
@@ -245,29 +245,43 @@ export default function TeamsPanel({
 
               {isExpanded && (
                 <div className="px-3 pb-3 border-t border-muted pt-2 space-y-2">
-                  <p className="text-xs font-serif text-sepia mb-2">Team Members:</p>
-                  {teamMembers(team.id).map(student => (
-                    <div key={student.id} className="flex items-center justify-between p-2 bg-background rounded text-xs">
-                      <span className="font-serif">{student.name}</span>
-                      <button
-                        onClick={() => handleRemoveMember(student.id, team.id)}
-                        className="text-red-600 hover:text-red-800"
-                        title="Remove from team"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
+                  <p className="text-xs font-serif text-sepia mb-2">Membres de l'équipe:</p>
+                  {teamMembers(team.id).length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic text-center py-2">Aucun membre</p>
+                  ) : (
+                    teamMembers(team.id).map(student => (
+                      <div key={student.id} className="flex items-center justify-between p-2 bg-background rounded text-xs border border-muted">
+                        <div className="flex items-center gap-2">
+                          <span className="font-serif font-semibold">{student.name}</span>
+                          {(student as any).isOnline && (
+                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleRemoveMember(student.id, team.id)}
+                          className="text-red-600 hover:text-red-800"
+                          title="Retirer de l'équipe"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))
+                  )}
                   {unassignedStudents.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-muted">
-                      <p className="text-xs font-serif text-sepia mb-2">Add Member:</p>
+                      <p className="text-xs font-serif text-sepia mb-2">Ajouter un membre:</p>
                       {unassignedStudents.map(student => (
                         <button
                           key={student.id}
                           onClick={() => handleAddMemberToTeam(student.id, team.id)}
-                          className="w-full text-left p-2 bg-background rounded text-xs hover:bg-muted font-serif"
+                          className="w-full text-left p-2 bg-background rounded text-xs hover:bg-muted font-serif border border-muted"
                         >
-                          + {student.name}
+                          <div className="flex items-center gap-2">
+                            <span>+ {student.name}</span>
+                            {(student as any).isOnline && (
+                              <div className="w-2 h-2 rounded-full bg-green-500" />
+                            )}
+                          </div>
                         </button>
                       ))}
                     </div>

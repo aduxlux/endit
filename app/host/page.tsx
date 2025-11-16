@@ -24,6 +24,8 @@ interface Student {
   team: string
   status: 'pending' | 'answered' | 'submitted'
   response: string
+  lastSeen?: number
+  isOnline?: boolean
 }
 
 import type { Question } from '@/components/host/questions-answers-panel'
@@ -59,14 +61,55 @@ export default function HostPage() {
     setSessionId(sid)
   }, [])
 
-  // Load data from API first, then localStorage fallback (using session ID)
+  // Load data from localStorage first (immediate), then sync with API
   useEffect(() => {
     if (!sessionId) return
     
-    // Try to load from API first (for cross-device sync)
-    const loadFromAPI = async () => {
-      let loadedFromAPI = false
-      
+    // Load from localStorage immediately for fast display
+    const savedTeams = localStorage.getItem(`teams-${sessionId}`) || localStorage.getItem('host-teams')
+    if (savedTeams) {
+      try {
+        const parsed = JSON.parse(savedTeams)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTeams(parsed)
+        }
+      } catch (e) {
+        console.error('Failed to parse saved teams:', e)
+      }
+    }
+    
+    const savedStudents = localStorage.getItem(`students-${sessionId}`) || localStorage.getItem('host-students')
+    if (savedStudents) {
+      try {
+        const parsed = JSON.parse(savedStudents)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const validStudents: Student[] = parsed.map((s: any) => ({
+            ...s,
+            status: (s.status === 'pending' || s.status === 'answered' || s.status === 'submitted') 
+              ? s.status 
+              : 'pending' as 'pending' | 'answered' | 'submitted',
+            lastSeen: s.lastSeen || Date.now(),
+            isOnline: s.lastSeen ? (Date.now() - s.lastSeen) < 30000 : false
+          }))
+          setStudents(validStudents)
+        }
+      } catch (e) {
+        console.error('Failed to parse saved students:', e)
+      }
+    }
+    
+    const savedLevel = localStorage.getItem(`host-current-level-${sessionId}`) || localStorage.getItem('host-current-level')
+    if (savedLevel) {
+      setCurrentLevel(savedLevel)
+    }
+    
+    const savedRunning = localStorage.getItem(`host-is-running-${sessionId}`)
+    if (savedRunning !== null) {
+      setIsRunning(savedRunning === 'true')
+    }
+    
+    // Then sync with API in background
+    const syncWithAPI = async () => {
       try {
         // Load teams from API
         const teamsResponse = await fetch(`/api/teams/${sessionId}`)
@@ -74,10 +117,8 @@ export default function HostPage() {
           const teamsData = await teamsResponse.json()
           if (Array.isArray(teamsData.teams) && teamsData.teams.length > 0) {
             setTeams(teamsData.teams)
-            // Also save to localStorage for offline access
             localStorage.setItem(`teams-${sessionId}`, JSON.stringify(teamsData.teams))
             localStorage.setItem('host-teams', JSON.stringify(teamsData.teams))
-            loadedFromAPI = true
           }
         }
         
@@ -86,75 +127,49 @@ export default function HostPage() {
         if (studentsResponse.ok) {
           const studentsData = await studentsResponse.json()
           if (Array.isArray(studentsData.students) && studentsData.students.length > 0) {
-            // Ensure status is one of the valid values
             const validStudents: Student[] = studentsData.students.map((s: any) => ({
               ...s,
               status: (s.status === 'pending' || s.status === 'answered' || s.status === 'submitted') 
                 ? s.status 
-                : 'pending' as 'pending' | 'answered' | 'submitted'
+                : 'pending' as 'pending' | 'answered' | 'submitted',
+              lastSeen: s.lastSeen || Date.now(),
+              isOnline: s.lastSeen ? (Date.now() - s.lastSeen) < 30000 : false
             }))
             setStudents(validStudents)
-            // Also save to localStorage for offline access
             localStorage.setItem(`students-${sessionId}`, JSON.stringify(validStudents))
             localStorage.setItem('host-students', JSON.stringify(validStudents))
           }
-        }
-      } catch (error) {
-        console.warn('Failed to load from API, using localStorage:', error)
-      }
-      
-      // Fallback to localStorage if API didn't have data or failed
-      if (!loadedFromAPI) {
-        const savedTeams = localStorage.getItem(`teams-${sessionId}`) || localStorage.getItem('host-teams')
-        if (savedTeams) {
-          try {
-            setTeams(JSON.parse(savedTeams))
-          } catch (e) {
-            console.error('Failed to parse saved teams:', e)
-          }
-        }
-      }
-      
-      const savedStudents = localStorage.getItem(`students-${sessionId}`) || localStorage.getItem('host-students')
-      if (savedStudents) {
-        try {
-          setStudents(JSON.parse(savedStudents))
-        } catch (e) {
-          console.error('Failed to parse saved students:', e)
-        }
-      }
-      
-      const savedLevel = localStorage.getItem('host-current-level')
-      if (savedLevel) {
-        setCurrentLevel(savedLevel)
       }
       
       // Load settings from API
-      try {
         const settingsResponse = await fetch(`/api/settings/${sessionId}`)
         if (settingsResponse.ok) {
           const settingsData = await settingsResponse.json()
           if (settingsData.currentLevel) {
             setCurrentLevel(settingsData.currentLevel)
+            localStorage.setItem(`host-current-level-${sessionId}`, settingsData.currentLevel)
             localStorage.setItem('host-current-level', settingsData.currentLevel)
           }
           if (settingsData.isRunning !== undefined) {
             setIsRunning(settingsData.isRunning)
+            localStorage.setItem(`host-is-running-${sessionId}`, String(settingsData.isRunning))
           }
         }
-      } catch (settingsError) {
-        console.warn('Failed to load settings from API:', settingsError)
+      } catch (error) {
+        console.warn('Failed to sync with API:', error)
       }
     }
     
-    loadFromAPI()
+    syncWithAPI()
   }, [sessionId])
 
   // Save current level to API and localStorage
   useEffect(() => {
     if (!sessionId) return
     
+    localStorage.setItem(`host-current-level-${sessionId}`, currentLevel)
     localStorage.setItem('host-current-level', currentLevel)
+    localStorage.setItem(`host-is-running-${sessionId}`, String(isRunning))
     
     // Save to API
     fetch(`/api/settings/${sessionId}`, {
@@ -174,28 +189,26 @@ export default function HostPage() {
   // Save teams to API and localStorage (with session ID)
   useEffect(() => {
     if (!sessionId) return
+    
     try {
-      // Save to localStorage for immediate local access
+      // Save to localStorage immediately
       localStorage.setItem(`teams-${sessionId}`, JSON.stringify(teams))
-      localStorage.setItem('host-teams', JSON.stringify(teams)) // Also save to old key for compatibility
+      localStorage.setItem('host-teams', JSON.stringify(teams))
       
-      // Save to API for cross-device sync
-      fetch(`/api/teams/${sessionId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ teams }),
-      }).catch(error => {
-        console.warn('Failed to save teams to API:', error)
-        // Continue anyway - localStorage is saved
-      })
+      // Save to API for cross-device sync (debounced)
+      const timeoutId = setTimeout(() => {
+        fetch(`/api/teams/${sessionId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ teams }),
+        }).catch(error => {
+          console.warn('Failed to save teams to API:', error)
+        })
+      }, 500)
       
-      // Trigger storage event for cross-device sync (same browser)
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: `teams-${sessionId}`,
-        newValue: JSON.stringify(teams)
-      }))
+      return () => clearTimeout(timeoutId)
     } catch (error) {
       console.error('Error saving teams:', error)
     }
@@ -203,28 +216,32 @@ export default function HostPage() {
 
   useEffect(() => {
     if (!sessionId) return
+    
     try {
-      // Save to localStorage for immediate local access
-      localStorage.setItem(`students-${sessionId}`, JSON.stringify(students))
-      localStorage.setItem('host-students', JSON.stringify(students)) // Also save to old key for compatibility
-      
-      // Save to API for cross-device sync
-      fetch(`/api/students/${sessionId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ students }),
-      }).catch(error => {
-        console.warn('Failed to save students to API:', error)
-        // Continue anyway - localStorage is saved
-      })
-      
-      // Trigger storage event for cross-device sync (same browser)
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: `students-${sessionId}`,
-        newValue: JSON.stringify(students)
+      // Update lastSeen for all students
+      const updatedStudents = students.map(s => ({
+        ...s,
+        lastSeen: s.lastSeen || Date.now()
       }))
+      
+      // Save to localStorage immediately
+      localStorage.setItem(`students-${sessionId}`, JSON.stringify(updatedStudents))
+      localStorage.setItem('host-students', JSON.stringify(updatedStudents))
+      
+      // Save to API for cross-device sync (debounced)
+      const timeoutId = setTimeout(() => {
+        fetch(`/api/students/${sessionId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ students: updatedStudents }),
+        }).catch(error => {
+          console.warn('Failed to save students to API:', error)
+        })
+      }, 500)
+      
+      return () => clearTimeout(timeoutId)
     } catch (error) {
       console.error('Error saving students:', error)
     }
@@ -322,6 +339,10 @@ export default function HostPage() {
 
   // Reset all data to empty state
   const handleReset = () => {
+    if (!confirm('Êtes-vous sûr de vouloir réinitialiser toutes les données? Cela supprimera toutes les équipes, étudiants et questions.')) {
+      return
+    }
+    
     setCurrentLevel('medium')
     setIsRunning(false)
     setTeams([])
@@ -330,11 +351,34 @@ export default function HostPage() {
     setShowAnswers(true)
     setSelectedTeam(null)
     setSummaryToken('lqisr-summary-' + Math.random().toString(36).substr(2, 9))
+    
+    // Clear localStorage for this session
+    if (sessionId) {
+      localStorage.removeItem(`teams-${sessionId}`)
+      localStorage.removeItem(`students-${sessionId}`)
+      localStorage.removeItem(`host-current-level-${sessionId}`)
+      localStorage.removeItem(`host-is-running-${sessionId}`)
+    }
     localStorage.removeItem('host-teams')
     localStorage.removeItem('host-students')
     localStorage.removeItem('student-answers')
     localStorage.removeItem('host-current-level')
     localStorage.removeItem('student-team-assignment')
+    
+    // Clear API data
+    if (sessionId) {
+      fetch(`/api/teams/${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teams: [] }),
+      }).catch(err => console.warn('Failed to clear teams:', err))
+      
+      fetch(`/api/students/${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ students: [] }),
+      }).catch(err => console.warn('Failed to clear students:', err))
+    }
   }
 
   // Hotkey handler
@@ -384,6 +428,7 @@ export default function HostPage() {
             onLevelChange={setCurrentLevel}
             isRunning={isRunning}
             onRunToggle={setIsRunning}
+            sessionId={sessionId}
           />
           <TeamsPanel 
             teams={teams} 
@@ -402,6 +447,7 @@ export default function HostPage() {
             teams={teams}
             onStudentUpdate={(updatedStudents) => setStudents(updatedStudents)}
             onTeamsUpdate={setTeams}
+            sessionId={sessionId}
           />
           <QuestionsAnswersPanel
             questions={questions}
