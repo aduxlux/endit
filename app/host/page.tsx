@@ -31,7 +31,37 @@ export default function HostPage() {
   ])
   const [showAnswers, setShowAnswers] = useState(true)
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
-  const [summaryToken] = useState('lqisr-summary-' + Math.random().toString(36).substr(2, 9))
+  const [summaryToken, setSummaryToken] = useState('lqisr-summary-' + Math.random().toString(36).substr(2, 9))
+
+  // Initial state values for reset
+  const initialTeams = [
+    { id: 'plato', name: 'The Platonists', emblem: '⬢', color: '#9d1f35' },
+    { id: 'aristotle', name: 'The Aristotelians', emblem: '◆', color: '#7b5a40' },
+    { id: 'stoic', name: 'The Stoics', emblem: '◇', color: '#c9a34a' },
+    { id: 'epicurean', name: 'The Epicureans', emblem: '●', color: '#a67c52' },
+  ]
+  const initialStudents = [
+    { id: '1', name: 'Marcus', team: 'plato', status: 'pending', response: '' },
+    { id: '2', name: 'Sophia', team: 'aristotle', status: 'answered', response: 'La bonne vie est...' },
+    { id: '3', name: 'Helena', team: 'stoic', status: 'pending', response: '' },
+  ]
+  const initialQuestions = [
+    { id: '1', text: 'Quelle est la nature de la bonne vie?', level: 'easy', answers: [] },
+    { id: '2', text: 'Comment la vertu se rapporte-t-elle au bonheur?', level: 'medium', answers: [] },
+    { id: '3', text: 'Le bonheur peut-il être atteint par des moyens externes?', level: 'hard', answers: [] },
+  ]
+
+  // Reset all data to initial state
+  const handleReset = () => {
+    setCurrentLevel('medium')
+    setIsRunning(false)
+    setTeams([...initialTeams])
+    setStudents([...initialStudents])
+    setQuestions([...initialQuestions])
+    setShowAnswers(true)
+    setSelectedTeam(null)
+    setSummaryToken('lqisr-summary-' + Math.random().toString(36).substr(2, 9))
+  }
 
   // Hotkey handler
   useEffect(() => {
@@ -107,6 +137,7 @@ export default function HostPage() {
         isRunning={isRunning}
         currentLevel={currentLevel}
         summaryToken={summaryToken}
+        onReset={handleReset}
       />
     </HostLayout>
   )

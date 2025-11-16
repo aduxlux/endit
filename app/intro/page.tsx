@@ -1,30 +1,37 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 
-export default function IntroPage() {
+function IntroContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [canSkip, setCanSkip] = useState(false)
 
   useEffect(() => {
+    // Get role from query parameter
+    const role = searchParams.get('role') || 'host'
+    const redirectPath = role === 'student' ? '/student' : '/host'
+
     // Allow skip after 1.5 seconds
     const skipTimer = setTimeout(() => setCanSkip(true), 1500)
 
     // Auto-redirect after 4 seconds
     const redirectTimer = setTimeout(() => {
-      router.push('/host')
+      router.push(redirectPath)
     }, 4000)
 
     return () => {
       clearTimeout(skipTimer)
       clearTimeout(redirectTimer)
     }
-  }, [router])
+  }, [router, searchParams])
 
   const handleSkip = () => {
-    router.push('/host')
+    const role = searchParams.get('role') || 'host'
+    const redirectPath = role === 'student' ? '/student' : '/host'
+    router.push(redirectPath)
   }
 
   return (
@@ -143,5 +150,19 @@ export default function IntroPage() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function IntroPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen w-full bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-sepia font-serif">Loading...</p>
+        </div>
+      </div>
+    }>
+      <IntroContent />
+    </Suspense>
   )
 }

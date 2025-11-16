@@ -4,6 +4,17 @@ import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import QRCodeModal from './qr-code-modal'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 interface ControlButtonsProps {
   showAnswers: boolean
@@ -11,6 +22,7 @@ interface ControlButtonsProps {
   isRunning: boolean
   currentLevel: string
   summaryToken: string
+  onReset: () => void
 }
 
 export default function ControlButtons({
@@ -19,9 +31,11 @@ export default function ControlButtons({
   isRunning,
   currentLevel,
   summaryToken,
+  onReset,
 }: ControlButtonsProps) {
   const router = useRouter()
   const [showQRModal, setShowQRModal] = useState(false)
+  const [showResetDialog, setShowResetDialog] = useState(false)
 
   return (
     <>
@@ -52,6 +66,36 @@ export default function ControlButtons({
         >
           Replay Mode
         </Button>
+
+        <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+          <AlertDialogTrigger asChild>
+            <Button
+              className="bg-red-600 text-parchment hover:bg-red-700 font-serif"
+            >
+              Reset Data
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-serif text-burgundy">Reset All Data?</AlertDialogTitle>
+              <AlertDialogDescription className="font-serif">
+                This will reset all teams, students, questions, and session data to their initial state. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="font-serif">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  onReset()
+                  setShowResetDialog(false)
+                }}
+                className="bg-red-600 hover:bg-red-700 font-serif"
+              >
+                Reset
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {showQRModal && (
