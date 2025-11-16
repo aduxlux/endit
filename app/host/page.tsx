@@ -50,13 +50,22 @@ export default function HostPage() {
   useEffect(() => {
     const savedTeams = localStorage.getItem('host-teams')
     const savedStudents = localStorage.getItem('host-students')
+    const savedLevel = localStorage.getItem('host-current-level')
     if (savedTeams) {
       setTeams(JSON.parse(savedTeams))
     }
     if (savedStudents) {
       setStudents(JSON.parse(savedStudents))
     }
+    if (savedLevel) {
+      setCurrentLevel(savedLevel)
+    }
   }, [])
+
+  // Save current level to localStorage
+  useEffect(() => {
+    localStorage.setItem('host-current-level', currentLevel)
+  }, [currentLevel])
 
   // Save teams and students to localStorage
   useEffect(() => {
@@ -135,6 +144,8 @@ export default function HostPage() {
     localStorage.removeItem('host-teams')
     localStorage.removeItem('host-students')
     localStorage.removeItem('student-answers')
+    localStorage.removeItem('host-current-level')
+    localStorage.removeItem('student-team-assignment')
   }
 
   // Hotkey handler

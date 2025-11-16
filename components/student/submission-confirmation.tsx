@@ -62,13 +62,6 @@ export default function SubmissionConfirmation({
           </div>
         )}
 
-        <Button
-          onClick={onReset}
-          className="w-full bg-burgundy hover:bg-burgundy/90 text-parchment font-serif mb-4"
-        >
-          Submit Another Response
-        </Button>
-
         <p className="text-muted-foreground text-xs">
           Awaiting additional questions from the host
         </p>

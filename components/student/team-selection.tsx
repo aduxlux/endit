@@ -32,6 +32,20 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
   }, [])
 
   const handleSelect = (teamId: string) => {
+    // Check if student already has a team assigned
+    const studentTeamData = localStorage.getItem('student-team-assignment')
+    if (studentTeamData) {
+      const data = JSON.parse(studentTeamData)
+      const hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
+      const existingStudent = hostStudents.find((s: any) => s.id === data.studentId)
+      
+      if (existingStudent && existingStudent.team) {
+        // Student already has a team - they cannot change it themselves
+        alert('You are already assigned to a team. Only the host can change your team assignment.')
+        return
+      }
+    }
+    
     setSelectedTeam(teamId)
     setTimeout(() => onSelect(teamId), 300)
   }

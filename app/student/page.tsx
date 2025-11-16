@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import TeamSelection from '@/components/student/team-selection'
 import UsernameEntry from '@/components/student/username-entry'
 import QuestionView from '@/components/student/question-view'
@@ -16,6 +16,31 @@ export default function StudentPage() {
   const [currentQuestion, setCurrentQuestion] = useState<string>('')
   const [currentAnswer, setCurrentAnswer] = useState<string>('')
 
+  // Check if student already has a team assigned (by host)
+  useEffect(() => {
+    const checkTeamAssignment = () => {
+      const studentTeamData = localStorage.getItem('student-team-assignment')
+      if (studentTeamData) {
+        const data = JSON.parse(studentTeamData)
+        // Always check host's student list for current team (host can change it)
+        const hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
+        const existingStudent = hostStudents.find((s: any) => s.id === data.studentId)
+        
+        if (existingStudent && existingStudent.team) {
+          // Student already has a team assigned, skip team selection
+          setSelectedTeam(existingStudent.team)
+          setUsername(existingStudent.name)
+          setFlow('question')
+        }
+      }
+    }
+    
+    checkTeamAssignment()
+    // Poll for team changes from host
+    const interval = setInterval(checkTeamAssignment, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
   const handleTeamSelect = (teamId: string) => {
     setSelectedTeam(teamId)
     setFlow('username')
@@ -23,14 +48,50 @@ export default function StudentPage() {
 
   const handleUsernameSubmit = (name: string) => {
     setUsername(name)
+    
+    // Save student's team assignment to localStorage (they can only join once)
+    const studentId = `student-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    localStorage.setItem('student-team-assignment', JSON.stringify({
+      studentId,
+      name,
+      teamId: selectedTeam,
+      timestamp: Date.now()
+    }))
+    
+    // Also add to host's student list
+    const hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
+    const team = JSON.parse(localStorage.getItem('host-teams') || '[]').find((t: any) => t.id === selectedTeam)
+    
+    if (team) {
+      // Check if student with same name already exists
+      const existingIndex = hostStudents.findIndex((s: any) => s.name === name && s.team === selectedTeam)
+      if (existingIndex < 0) {
+        hostStudents.push({
+          id: studentId,
+          name,
+          team: selectedTeam,
+          status: 'pending',
+          response: ''
+        })
+        localStorage.setItem('host-students', JSON.stringify(hostStudents))
+      }
+    }
+    
     setFlow('question')
   }
 
   const handleAnswerSubmit = (answer: string) => {
     setCurrentAnswer(answer)
     
-    // Save answer to localStorage for host to see
-    const studentId = `student-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    // Get student ID from team assignment
+    const studentTeamData = localStorage.getItem('student-team-assignment')
+    let studentId = `student-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    
+    if (studentTeamData) {
+      const data = JSON.parse(studentTeamData)
+      studentId = data.studentId
+    }
+    
     const answerData = {
       id: `answer-${Date.now()}`,
       studentId,
@@ -50,7 +111,7 @@ export default function StudentPage() {
     const team = JSON.parse(localStorage.getItem('host-teams') || '[]').find((t: any) => t.id === selectedTeam)
     
     if (team) {
-      const existingStudentIndex = hostStudents.findIndex((s: any) => s.name === username && s.team === selectedTeam)
+      const existingStudentIndex = hostStudents.findIndex((s: any) => s.id === studentId)
       if (existingStudentIndex >= 0) {
         hostStudents[existingStudentIndex] = {
           ...hostStudents[existingStudentIndex],
