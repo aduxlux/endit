@@ -10,6 +10,7 @@ import QuestionsManagementPanel from '@/components/host/questions-management-pan
 import ControlButtons from '@/components/host/control-buttons'
 import PinEntry from '@/components/host/pin-entry'
 import QRCodeModal from '@/components/host/qr-code-modal'
+import { supabase } from '@/lib/supabase'
 
 interface Team {
   id: string
@@ -247,18 +248,141 @@ export default function HostPage() {
     }
   }, [students, sessionId])
 
-  // Listen for new student answers from API and localStorage (using session ID)
+  // Real-time subscriptions for instant updates (teams, students, answers)
   useEffect(() => {
     if (!sessionId) return
-    
+
+    // Subscribe to teams changes
+    const teamsChannel = supabase
+      .channel(`host-teams-${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'teams',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        async () => {
+          // Reload teams from API
+          try {
+            const response = await fetch(`/api/teams/${sessionId}`)
+            if (response.ok) {
+              const data = await response.json()
+              if (Array.isArray(data.teams)) {
+                setTeams(data.teams)
+                localStorage.setItem(`teams-${sessionId}`, JSON.stringify(data.teams))
+                localStorage.setItem('host-teams', JSON.stringify(data.teams))
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to reload teams:', error)
+          }
+        }
+      )
+      .subscribe()
+
+    // Subscribe to students/users changes
+    const studentsChannel = supabase
+      .channel(`host-students-${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'users',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        async () => {
+          // Reload students from API
+          try {
+            const response = await fetch(`/api/students/${sessionId}`)
+            if (response.ok) {
+              const data = await response.json()
+              if (Array.isArray(data.students)) {
+                const validStudents: Student[] = data.students.map((s: any) => ({
+                  ...s,
+                  status: (s.status === 'pending' || s.status === 'answered' || s.status === 'submitted') 
+                    ? s.status 
+                    : 'pending' as 'pending' | 'answered' | 'submitted',
+                  lastSeen: s.lastSeen ? new Date(s.lastSeen).getTime() : Date.now(),
+                  isOnline: s.lastSeen ? (Date.now() - new Date(s.lastSeen).getTime()) < 30000 : false
+                }))
+                setStudents(validStudents)
+                localStorage.setItem(`students-${sessionId}`, JSON.stringify(validStudents))
+                localStorage.setItem('host-students', JSON.stringify(validStudents))
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to reload students:', error)
+          }
+        }
+      )
+      .subscribe()
+
+    // Subscribe to answers changes
+    const answersChannel = supabase
+      .channel(`host-answers-${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'answers',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        async () => {
+          // Reload answers and update students
+          try {
+            const response = await fetch(`/api/answers/${sessionId}`)
+            if (response.ok) {
+              const data = await response.json()
+              if (Array.isArray(data.answers) && data.answers.length > 0) {
+                // Update students with new answers
+                setStudents(prev => {
+                  const updated = [...prev]
+                  data.answers.forEach((answer: { studentId: string; studentName: string; teamId: string; text: string }) => {
+                    const studentIndex = updated.findIndex(s => s.id === answer.studentId)
+                    if (studentIndex >= 0) {
+                      updated[studentIndex] = {
+                        ...updated[studentIndex],
+                        response: answer.text,
+                        status: 'answered'
+                      }
+                    } else {
+                      // Add new student if they don't exist
+                      const team = teams.find(t => t.id === answer.teamId)
+                      if (team) {
+                        updated.push({
+                          id: answer.studentId,
+                          name: answer.studentName,
+                          team: answer.teamId,
+                          status: 'answered',
+                          response: answer.text,
+                          lastSeen: Date.now(),
+                          isOnline: true
+                        })
+                      }
+                    }
+                  })
+                  return updated
+                })
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to reload answers:', error)
+          }
+        }
+      )
+      .subscribe()
+
+    // Also poll for answers as fallback (in case real-time doesn't work)
     const loadAnswers = async () => {
-      // Try to load from API first
       try {
         const response = await fetch(`/api/answers/${sessionId}`)
         if (response.ok) {
           const data = await response.json()
           if (Array.isArray(data.answers) && data.answers.length > 0) {
-            // Update students with new answers from API
             setStudents(prev => {
               const updated = [...prev]
               data.answers.forEach((answer: { studentId: string; studentName: string; teamId: string; text: string }) => {
@@ -270,7 +394,6 @@ export default function HostPage() {
                     status: 'answered'
                   }
                 } else {
-                  // Add new student if they don't exist
                   const team = teams.find(t => t.id === answer.teamId)
                   if (team) {
                     updated.push({
@@ -278,64 +401,34 @@ export default function HostPage() {
                       name: answer.studentName,
                       team: answer.teamId,
                       status: 'answered',
-                      response: answer.text
+                      response: answer.text,
+                      lastSeen: Date.now(),
+                      isOnline: true
                     })
                   }
                 }
               })
               return updated
             })
-            return // Successfully loaded from API
           }
         }
       } catch (apiError) {
         console.warn('Failed to load answers from API:', apiError)
       }
-      
-      // Fallback to localStorage
-      const studentAnswers = localStorage.getItem(`answers-${sessionId}`) || localStorage.getItem('student-answers')
-      if (studentAnswers) {
-        const answers = JSON.parse(studentAnswers)
-        // Update students with new answers
-        setStudents(prev => {
-          const updated = [...prev]
-          answers.forEach((answer: { studentId: string; studentName: string; teamId: string; text: string }) => {
-            const studentIndex = updated.findIndex(s => s.id === answer.studentId)
-            if (studentIndex >= 0) {
-              updated[studentIndex] = {
-                ...updated[studentIndex],
-                response: answer.text,
-                status: 'answered'
-              }
-            } else {
-              // Add new student if they don't exist
-              const team = teams.find(t => t.id === answer.teamId)
-              if (team) {
-                updated.push({
-                  id: answer.studentId,
-                  name: answer.studentName,
-                  team: answer.teamId,
-                  status: 'answered',
-                  response: answer.text
-                })
-              }
-            }
-          })
-          return updated
-        })
-      }
     }
 
-    // Check on mount
+    // Initial load
     loadAnswers()
-
-    // Poll for changes every 2 seconds
-    const interval = setInterval(loadAnswers, 2000)
+    // Poll every 3 seconds as fallback
+    const pollInterval = setInterval(loadAnswers, 3000)
 
     return () => {
-      clearInterval(interval)
+      supabase.removeChannel(teamsChannel)
+      supabase.removeChannel(studentsChannel)
+      supabase.removeChannel(answersChannel)
+      clearInterval(pollInterval)
     }
-  }, [teams, sessionId])
+  }, [sessionId, teams])
 
   // Reset all data to empty state
   const handleReset = () => {

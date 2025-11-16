@@ -94,7 +94,7 @@ export default function StudentPage() {
     }
   }, [])
 
-  // Check if student already has a team assigned (by host)
+  // Check if student already has a team assigned (by host) - but still require username entry
   useEffect(() => {
     if (!hasSession) return
     
@@ -107,26 +107,51 @@ export default function StudentPage() {
         const studentTeamData = localStorage.getItem('student-team-assignment')
         if (studentTeamData) {
           const data = JSON.parse(studentTeamData)
-          // Always check host's student list for current team (host can change it)
-          // Try session-specific first, then fallback
-          let hostStudents = []
-          if (sessionId) {
-            const sessionStudents = localStorage.getItem(`students-${sessionId}`)
-            if (sessionStudents) {
-              hostStudents = JSON.parse(sessionStudents)
-            }
-          }
-          if (hostStudents.length === 0) {
-            hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
-          }
           
-          const existingStudent = hostStudents.find((s: any) => s.id === data.studentId)
+          // Check if student has BOTH team AND name in assignment
+          if (data.teamId && data.name) {
+            // Student is fully registered, can proceed to questions
+            setSelectedTeam(data.teamId)
+            setUsername(data.name)
+            // Only go to question if we're not already in a flow
+            if (flow === 'team' || flow === 'username') {
+              setFlow('question')
+            }
+            return
+          } else if (data.teamId && !data.name) {
+            // Has team but no name - must enter username
+            setSelectedTeam(data.teamId)
+            if (flow !== 'username' && flow !== 'question') {
+              setFlow('username')
+            }
+            return
+          }
+        }
+        
+        // Check host's student list for team assignment (host can assign team)
+        // Try session-specific first, then fallback
+        let hostStudents = []
+        if (sessionId) {
+          const sessionStudents = localStorage.getItem(`students-${sessionId}`)
+          if (sessionStudents) {
+            hostStudents = JSON.parse(sessionStudents)
+          }
+        }
+        if (hostStudents.length === 0) {
+          hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
+        }
+        
+        const existingAssignment = localStorage.getItem('student-team-assignment')
+        if (existingAssignment) {
+          const assignmentData = JSON.parse(existingAssignment)
+          const existingStudent = hostStudents.find((s: any) => s.id === assignmentData.studentId)
           
           if (existingStudent && existingStudent.team) {
-            // Student already has a team assigned, skip team selection
+            // Host assigned a team, but student still needs to enter name
             setSelectedTeam(existingStudent.team)
-            setUsername(existingStudent.name)
-            setFlow('question')
+            if (!assignmentData.name && flow !== 'username' && flow !== 'question') {
+              setFlow('username')
+            }
           }
         }
       } catch (error) {
@@ -135,10 +160,10 @@ export default function StudentPage() {
     }
     
     checkTeamAssignment()
-    // Poll for team changes from host
-    const interval = setInterval(checkTeamAssignment, 1000)
+    // Poll for team changes from host (less frequently)
+    const interval = setInterval(checkTeamAssignment, 2000)
     return () => clearInterval(interval)
-  }, [hasSession])
+  }, [hasSession, flow])
 
   const handleTeamSelect = (teamId: string) => {
     setSelectedTeam(teamId)
