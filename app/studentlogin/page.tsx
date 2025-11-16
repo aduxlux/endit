@@ -16,7 +16,13 @@ export default function StudentLoginPage() {
   useEffect(() => {
     // Get session ID from URL or localStorage
     const urlParams = new URLSearchParams(window.location.search)
-    const sid = urlParams.get('session') || localStorage.getItem('host-session-id')
+    let sid = urlParams.get('session') || localStorage.getItem('host-session-id')
+    
+    // If we have a session ID but it's not in the URL, update the URL
+    if (sid && !urlParams.get('session')) {
+      const newUrl = `${window.location.pathname}?session=${sid}`
+      window.history.replaceState({}, '', newUrl)
+    }
     
     if (sid) {
       setSessionId(sid)

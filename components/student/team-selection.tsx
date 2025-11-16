@@ -30,58 +30,83 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
           sessionId = localStorage.getItem('host-session-id')
         }
         
-        if (!sessionId) {
-          // No session ID, can't load teams
-          setTeams([])
-          return
+        // Try to load teams from multiple sources
+        let loadedTeams: Team[] = []
+        
+        // 1. Try API first (if we have session ID)
+        if (sessionId) {
+          try {
+            const response = await fetch(`/api/teams/${sessionId}`)
+            if (response.ok) {
+              const data = await response.json()
+              if (Array.isArray(data.teams) && data.teams.length > 0) {
+                loadedTeams = data.teams
+                setTeams(loadedTeams)
+                return // Success, exit early
+              }
+            }
+          } catch (fetchError) {
+            console.warn('API fetch failed, trying localStorage:', fetchError)
+          }
         }
         
-        // Fetch teams from API
-        try {
-          const response = await fetch(`/api/teams/${sessionId}`)
-          if (response.ok) {
-            const data = await response.json()
-            if (Array.isArray(data.teams) && data.teams.length > 0) {
-              setTeams(data.teams)
-            } else {
-              setTeams([])
-            }
-          } else {
-            // API failed, try localStorage as fallback
-            const stored = localStorage.getItem(`teams-${sessionId}`) || localStorage.getItem('host-teams')
-            if (stored) {
-              try {
-                const parsed = JSON.parse(stored)
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  setTeams(parsed)
-                } else {
-                  setTeams([])
-                }
-              } catch (e) {
-                setTeams([])
-              }
-            } else {
-              setTeams([])
-            }
-          }
-        } catch (fetchError) {
-          // Network error, try localStorage as fallback
-          console.warn('API fetch failed, trying localStorage:', fetchError)
-          const stored = localStorage.getItem(`teams-${sessionId}`) || localStorage.getItem('host-teams')
+        // 2. Try localStorage with session ID
+        if (sessionId) {
+          const stored = localStorage.getItem(`teams-${sessionId}`)
           if (stored) {
             try {
               const parsed = JSON.parse(stored)
               if (Array.isArray(parsed) && parsed.length > 0) {
-                setTeams(parsed)
-              } else {
-                setTeams([])
+                loadedTeams = parsed
+                setTeams(loadedTeams)
+                return // Success, exit early
               }
             } catch (e) {
-              setTeams([])
+              console.warn('Error parsing session teams:', e)
             }
-          } else {
-            setTeams([])
           }
+        }
+        
+        // 3. Try generic host-teams key (fallback for backward compatibility)
+        const genericStored = localStorage.getItem('host-teams')
+        if (genericStored) {
+          try {
+            const parsed = JSON.parse(genericStored)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              loadedTeams = parsed
+              setTeams(loadedTeams)
+              return // Success, exit early
+            }
+          } catch (e) {
+            console.warn('Error parsing generic teams:', e)
+          }
+        }
+        
+        // 4. Try to find any teams-* key in localStorage
+        if (loadedTeams.length === 0) {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i)
+            if (key && key.startsWith('teams-')) {
+              try {
+                const stored = localStorage.getItem(key)
+                if (stored) {
+                  const parsed = JSON.parse(stored)
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    loadedTeams = parsed
+                    setTeams(loadedTeams)
+                    return // Success, exit early
+                  }
+                }
+              } catch (e) {
+                // Continue to next key
+              }
+            }
+          }
+        }
+        
+        // If we still have no teams, set empty array
+        if (loadedTeams.length === 0) {
+          setTeams([])
         }
       } catch (error) {
         console.error('Error loading teams:', error)

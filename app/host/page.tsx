@@ -657,7 +657,7 @@ export default function HostPage() {
               <div className="bg-muted p-4 rounded-lg">
                 <p className="text-xs font-serif text-sepia uppercase tracking-wide mb-2">Student Link:</p>
                 <p className="text-sm font-mono text-foreground break-all bg-background p-2 rounded">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/student?session=${sessionId}` : ''}
+                  {typeof window !== 'undefined' ? `${window.location.origin}/studentlogin?session=${sessionId}` : ''}
                 </p>
               </div>
 
@@ -670,7 +670,7 @@ export default function HostPage() {
 
               <button
                 onClick={() => {
-                  const studentUrl = typeof window !== 'undefined' ? `${window.location.origin}/student?session=${sessionId}` : ''
+                  const studentUrl = typeof window !== 'undefined' ? `${window.location.origin}/studentlogin?session=${sessionId}` : ''
                   if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(studentUrl).then(() => {
                       alert('Link copied to clipboard!')
