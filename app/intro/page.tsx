@@ -136,7 +136,7 @@ function IntroContent() {
         </button>
       )}
 
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{__html: `
         @keyframes fade-in-delay {
           0%, 40% {
             opacity: 0;
@@ -148,7 +148,7 @@ function IntroContent() {
         .animate-fade-in-delay {
           animation: fade-in-delay 3s ease-in-out forwards;
         }
-      `}</style>
+      `}} />
     </div>
   )
 }

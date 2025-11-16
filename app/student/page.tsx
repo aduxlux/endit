@@ -28,6 +28,47 @@ export default function StudentPage() {
 
   const handleAnswerSubmit = (answer: string) => {
     setCurrentAnswer(answer)
+    
+    // Save answer to localStorage for host to see
+    const studentId = `student-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const answerData = {
+      id: `answer-${Date.now()}`,
+      studentId,
+      studentName: username,
+      teamId: selectedTeam,
+      text: answer,
+      timestamp: new Date().toISOString()
+    }
+    
+    // Get existing answers
+    const existingAnswers = JSON.parse(localStorage.getItem('student-answers') || '[]')
+    existingAnswers.push(answerData)
+    localStorage.setItem('student-answers', JSON.stringify(existingAnswers))
+    
+    // Also update the host's student list
+    const hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
+    const team = JSON.parse(localStorage.getItem('host-teams') || '[]').find((t: any) => t.id === selectedTeam)
+    
+    if (team) {
+      const existingStudentIndex = hostStudents.findIndex((s: any) => s.name === username && s.team === selectedTeam)
+      if (existingStudentIndex >= 0) {
+        hostStudents[existingStudentIndex] = {
+          ...hostStudents[existingStudentIndex],
+          response: answer,
+          status: 'answered'
+        }
+      } else {
+        hostStudents.push({
+          id: studentId,
+          name: username,
+          team: selectedTeam,
+          status: 'answered',
+          response: answer
+        })
+      }
+      localStorage.setItem('host-students', JSON.stringify(hostStudents))
+    }
+    
     setFlow('confirmation')
   }
 

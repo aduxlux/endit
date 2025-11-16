@@ -18,56 +18,43 @@ interface Answer {
 }
 
 export default function AnswersPage() {
-  const [answers, setAnswers] = useState<Answer[]>([
-    {
-      id: '1',
-      studentId: '1',
-      studentName: 'Marcus',
-      teamId: 'plato',
-      teamName: 'The Platonists',
-      text: 'The good life is the pursuit of eternal forms and philosophical truth, achieving harmony between reason and soul.',
-      rating: 5,
-      highlighted: true,
-      timestamp: new Date(),
-    },
-    {
-      id: '2',
-      studentId: '2',
-      studentName: 'Sophia',
-      teamId: 'aristotle',
-      teamName: 'The Aristotelians',
-      text: 'Virtue is a habit, developed through practice and wisdom. The good life involves the fulfillment of potential through excellence.',
-      rating: 4,
-      highlighted: false,
-      timestamp: new Date(),
-    },
-    {
-      id: '3',
-      studentId: '3',
-      studentName: 'Helena',
-      teamId: 'stoic',
-      teamName: 'The Stoics',
-      text: 'The good life comes from virtue and acceptance of what we cannot control. Through reason and discipline, we achieve tranquility.',
-      rating: 3,
-      highlighted: false,
-      timestamp: new Date(),
-    },
-    {
-      id: '4',
-      studentId: '4',
-      studentName: 'Alexander',
-      teamId: 'epicurean',
-      teamName: 'The Epicureans',
-      text: 'The good life is living modestly and seeking simple pleasures with friends. Freedom from fear and pain brings happiness.',
-      rating: 4,
-      highlighted: false,
-      timestamp: new Date(),
-    },
-  ])
-
+  const [answers, setAnswers] = useState<Answer[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [showAllAnswers, setShowAllAnswers] = useState(false)
   const [highlightedAnswerId, setHighlightedAnswerId] = useState<string | null>(null)
+
+  // Load answers from localStorage
+  useEffect(() => {
+    const loadAnswers = () => {
+      const studentAnswers = JSON.parse(localStorage.getItem('student-answers') || '[]')
+      const teams = JSON.parse(localStorage.getItem('host-teams') || '[]')
+      
+      const formattedAnswers: Answer[] = studentAnswers.map((answer: any) => {
+        const team = teams.find((t: any) => t.id === answer.teamId)
+        return {
+          id: answer.id,
+          studentId: answer.studentId,
+          studentName: answer.studentName,
+          teamId: answer.teamId,
+          teamName: team?.name || 'Unknown Team',
+          text: answer.text,
+          rating: answer.rating,
+          highlighted: answer.highlighted || false,
+          timestamp: new Date(answer.timestamp || Date.now())
+        }
+      })
+      
+      setAnswers(formattedAnswers)
+      if (formattedAnswers.length > 0 && currentIndex >= formattedAnswers.length) {
+        setCurrentIndex(0)
+      }
+    }
+    
+    loadAnswers()
+    // Poll for new answers
+    const interval = setInterval(loadAnswers, 1000)
+    return () => clearInterval(interval)
+  }, [currentIndex])
 
   // Keyboard navigation
   useEffect(() => {
@@ -100,7 +87,14 @@ export default function AnswersPage() {
       <div className="w-full h-screen flex flex-col">
         {/* Main answers display */}
         <div className="flex-1 overflow-auto">
-          {showAllAnswers ? (
+          {answers.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center text-muted-foreground font-serif">
+                <p className="text-2xl mb-2">No answers yet</p>
+                <p className="text-sm">Waiting for students to submit their responses...</p>
+              </div>
+            </div>
+          ) : showAllAnswers ? (
             <AnswersGrid answers={answers} highlightedAnswerId={highlightedAnswerId} />
           ) : (
             <SingleAnswerView
@@ -143,10 +137,11 @@ function SingleAnswerView({
         {/* Team indicator with emblem */}
         <div className="flex items-center gap-4 mb-8">
           <div className="w-16 h-16 rounded-full bg-card border-2 border-sepia flex items-center justify-center text-3xl">
-            {answer.teamId === 'plato' && '⬢'}
-            {answer.teamId === 'aristotle' && '◆'}
-            {answer.teamId === 'stoic' && '◇'}
-            {answer.teamId === 'epicurean' && '●'}
+            {(() => {
+              const teams = JSON.parse(localStorage.getItem('host-teams') || '[]')
+              const team = teams.find((t: any) => t.id === answer.teamId)
+              return team?.emblem || '○'
+            })()}
           </div>
           <div>
             <p className="text-xs font-serif text-sepia uppercase tracking-wide">Team</p>

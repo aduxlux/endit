@@ -9,22 +9,35 @@ import QuestionsAnswersPanel from '@/components/host/questions-answers-panel'
 import ControlButtons from '@/components/host/control-buttons'
 import PinEntry from '@/components/host/pin-entry'
 
+interface Team {
+  id: string
+  name: string
+  emblem: string
+  color: string
+}
+
+interface Student {
+  id: string
+  name: string
+  team: string
+  status: 'pending' | 'answered' | 'submitted'
+  response: string
+}
+
+interface Question {
+  id: string
+  text: string
+  level: string
+  answers: Array<{ studentId: string; text: string; rating?: number }>
+}
+
 export default function HostPage() {
   const [isPinVerified, setIsPinVerified] = useState(false)
   const [currentLevel, setCurrentLevel] = useState('medium')
   const [isRunning, setIsRunning] = useState(false)
-  const [teams, setTeams] = useState([
-    { id: 'plato', name: 'The Platonists', emblem: '⬢', color: '#9d1f35' },
-    { id: 'aristotle', name: 'The Aristotelians', emblem: '◆', color: '#7b5a40' },
-    { id: 'stoic', name: 'The Stoics', emblem: '◇', color: '#c9a34a' },
-    { id: 'epicurean', name: 'The Epicureans', emblem: '●', color: '#a67c52' },
-  ])
-  const [students, setStudents] = useState([
-    { id: '1', name: 'Marcus', team: 'plato', status: 'pending', response: '' },
-    { id: '2', name: 'Sophia', team: 'aristotle', status: 'answered', response: 'La bonne vie est...' },
-    { id: '3', name: 'Helena', team: 'stoic', status: 'pending', response: '' },
-  ])
-  const [questions, setQuestions] = useState([
+  const [teams, setTeams] = useState<Team[]>([])
+  const [students, setStudents] = useState<Student[]>([])
+  const [questions, setQuestions] = useState<Question[]>([
     { id: '1', text: 'Quelle est la nature de la bonne vie?', level: 'easy', answers: [] },
     { id: '2', text: 'Comment la vertu se rapporte-t-elle au bonheur?', level: 'medium', answers: [] },
     { id: '3', text: 'Le bonheur peut-il être atteint par des moyens externes?', level: 'hard', answers: [] },
@@ -33,34 +46,95 @@ export default function HostPage() {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [summaryToken, setSummaryToken] = useState('lqisr-summary-' + Math.random().toString(36).substr(2, 9))
 
-  // Initial state values for reset
-  const initialTeams = [
-    { id: 'plato', name: 'The Platonists', emblem: '⬢', color: '#9d1f35' },
-    { id: 'aristotle', name: 'The Aristotelians', emblem: '◆', color: '#7b5a40' },
-    { id: 'stoic', name: 'The Stoics', emblem: '◇', color: '#c9a34a' },
-    { id: 'epicurean', name: 'The Epicureans', emblem: '●', color: '#a67c52' },
-  ]
-  const initialStudents = [
-    { id: '1', name: 'Marcus', team: 'plato', status: 'pending', response: '' },
-    { id: '2', name: 'Sophia', team: 'aristotle', status: 'answered', response: 'La bonne vie est...' },
-    { id: '3', name: 'Helena', team: 'stoic', status: 'pending', response: '' },
-  ]
-  const initialQuestions = [
-    { id: '1', text: 'Quelle est la nature de la bonne vie?', level: 'easy', answers: [] },
-    { id: '2', text: 'Comment la vertu se rapporte-t-elle au bonheur?', level: 'medium', answers: [] },
-    { id: '3', text: 'Le bonheur peut-il être atteint par des moyens externes?', level: 'hard', answers: [] },
-  ]
+  // Load data from localStorage on mount
+  useEffect(() => {
+    const savedTeams = localStorage.getItem('host-teams')
+    const savedStudents = localStorage.getItem('host-students')
+    if (savedTeams) {
+      setTeams(JSON.parse(savedTeams))
+    }
+    if (savedStudents) {
+      setStudents(JSON.parse(savedStudents))
+    }
+  }, [])
 
-  // Reset all data to initial state
+  // Save teams and students to localStorage
+  useEffect(() => {
+    localStorage.setItem('host-teams', JSON.stringify(teams))
+  }, [teams])
+
+  useEffect(() => {
+    localStorage.setItem('host-students', JSON.stringify(students))
+  }, [students])
+
+  // Listen for new student answers from student page
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const studentAnswers = localStorage.getItem('student-answers')
+      if (studentAnswers) {
+        const answers = JSON.parse(studentAnswers)
+        // Update students with new answers
+        setStudents(prev => {
+          const updated = [...prev]
+          answers.forEach((answer: { studentId: string; studentName: string; teamId: string; text: string }) => {
+            const studentIndex = updated.findIndex(s => s.id === answer.studentId)
+            if (studentIndex >= 0) {
+              updated[studentIndex] = {
+                ...updated[studentIndex],
+                response: answer.text,
+                status: 'answered'
+              }
+            } else {
+              // Add new student if they don't exist
+              const team = teams.find(t => t.id === answer.teamId)
+              if (team) {
+                updated.push({
+                  id: answer.studentId,
+                  name: answer.studentName,
+                  team: answer.teamId,
+                  status: 'answered',
+                  response: answer.text
+                })
+              }
+            }
+          })
+          return updated
+        })
+      }
+    }
+
+    // Check on mount
+    handleStorageChange()
+
+    // Listen for storage events (from other tabs/windows)
+    window.addEventListener('storage', handleStorageChange)
+    
+    // Poll for changes (since storage event doesn't fire in same tab)
+    const interval = setInterval(handleStorageChange, 1000)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      clearInterval(interval)
+    }
+  }, [teams])
+
+  // Reset all data to empty state
   const handleReset = () => {
     setCurrentLevel('medium')
     setIsRunning(false)
-    setTeams([...initialTeams])
-    setStudents([...initialStudents])
-    setQuestions([...initialQuestions])
+    setTeams([])
+    setStudents([])
+    setQuestions([
+      { id: '1', text: 'Quelle est la nature de la bonne vie?', level: 'easy', answers: [] },
+      { id: '2', text: 'Comment la vertu se rapporte-t-elle au bonheur?', level: 'medium', answers: [] },
+      { id: '3', text: 'Le bonheur peut-il être atteint par des moyens externes?', level: 'hard', answers: [] },
+    ])
     setShowAnswers(true)
     setSelectedTeam(null)
     setSummaryToken('lqisr-summary-' + Math.random().toString(36).substr(2, 9))
+    localStorage.removeItem('host-teams')
+    localStorage.removeItem('host-students')
+    localStorage.removeItem('student-answers')
   }
 
   // Hotkey handler
@@ -111,7 +185,14 @@ export default function HostPage() {
             isRunning={isRunning}
             onRunToggle={setIsRunning}
           />
-          <TeamsPanel teams={teams} selectedTeam={selectedTeam} onSelectTeam={setSelectedTeam} />
+          <TeamsPanel 
+            teams={teams} 
+            selectedTeam={selectedTeam} 
+            onSelectTeam={setSelectedTeam}
+            onTeamsUpdate={setTeams}
+            students={students}
+            onStudentsUpdate={setStudents}
+          />
         </div>
 
         {/* Bottom panels */}
@@ -120,6 +201,7 @@ export default function HostPage() {
             students={students}
             teams={teams}
             onStudentUpdate={setStudents}
+            onTeamsUpdate={setTeams}
           />
           <QuestionsAnswersPanel
             questions={questions}

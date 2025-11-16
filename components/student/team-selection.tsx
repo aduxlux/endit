@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
-const TEAMS = [
-  { id: 'plato', name: 'The Platonists', emblem: '⬢' },
-  { id: 'aristotle', name: 'The Aristotelians', emblem: '◆' },
-  { id: 'stoic', name: 'The Stoics', emblem: '◇' },
-  { id: 'epicurean', name: 'The Epicureans', emblem: '●' },
-]
+interface Team {
+  id: string
+  name: string
+  emblem: string
+  color: string
+}
 
 interface TeamSelectionProps {
   onSelect: (teamId: string) => void
@@ -15,6 +15,21 @@ interface TeamSelectionProps {
 
 export default function TeamSelection({ onSelect }: TeamSelectionProps) {
   const [selectedTeam, setSelectedTeam] = useState<string>('')
+  const [teams, setTeams] = useState<Team[]>([])
+
+  // Load teams from localStorage (set by host)
+  useEffect(() => {
+    const loadTeams = () => {
+      const savedTeams = localStorage.getItem('host-teams')
+      if (savedTeams) {
+        setTeams(JSON.parse(savedTeams))
+      }
+    }
+    loadTeams()
+    // Poll for team updates
+    const interval = setInterval(loadTeams, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleSelect = (teamId: string) => {
     setSelectedTeam(teamId)
@@ -28,20 +43,29 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
         <p className="text-center text-sepia text-sm mb-8 italic">Choose your philosophical society</p>
 
         <div className="space-y-3">
-          {TEAMS.map((team) => (
-            <button
-              key={team.id}
-              onClick={() => handleSelect(team.id)}
-              className={`w-full p-4 border-2 rounded-md transition-all duration-300 flex items-center gap-3 ${
-                selectedTeam === team.id
-                  ? 'border-burgundy bg-burgundy bg-opacity-10 text-burgundy'
-                  : 'border-muted hover:border-sepia text-sepia hover:text-burgundy'
-              }`}
-            >
-              <span className="text-2xl">{team.emblem}</span>
-              <span className="font-serif text-lg">{team.name}</span>
-            </button>
-          ))}
+          {teams.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm font-serif italic">
+              No teams available. Please wait for the host to create teams.
+            </div>
+          ) : (
+            teams.map((team) => (
+              <button
+                key={team.id}
+                onClick={() => handleSelect(team.id)}
+                className={`w-full p-4 border-2 rounded-md transition-all duration-300 flex items-center gap-3 ${
+                  selectedTeam === team.id
+                    ? 'border-burgundy bg-burgundy bg-opacity-10 text-burgundy'
+                    : 'border-muted hover:border-sepia text-sepia hover:text-burgundy'
+                }`}
+                style={{
+                  borderColor: selectedTeam === team.id ? team.color : undefined
+                }}
+              >
+                <span className="text-2xl">{team.emblem}</span>
+                <span className="font-serif text-lg">{team.name}</span>
+              </button>
+            ))
+          )}
         </div>
 
         <p className="text-center text-muted-foreground text-xs mt-8">
