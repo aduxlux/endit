@@ -63,13 +63,18 @@ export default function StudentLoginPage() {
     const urlParams = new URLSearchParams(window.location.search)
     const sid = urlParams.get('session') || localStorage.getItem('host-session-id') || 'default-session'
     
-    // Check if student already exists
-    let studentId = `student-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    // Create unique student ID based on username + team + session (account system)
+    // This ensures each student has a unique account tied to their username and team
+    const accountKey = `${name.trim().toLowerCase()}-${selectedTeam}-${sid}`
+    let studentId = `student-${accountKey}`
+    
+    // Check if student account already exists
     const existingAssignment = localStorage.getItem('student-team-assignment')
     if (existingAssignment) {
       try {
         const data = JSON.parse(existingAssignment)
-        if (data.studentId) {
+        // If same username and team, use existing ID
+        if (data.name?.toLowerCase() === name.trim().toLowerCase() && data.teamId === selectedTeam && data.sessionId === sid) {
           studentId = data.studentId
         }
       } catch (e) {
@@ -86,7 +91,7 @@ export default function StudentLoginPage() {
       timestamp: Date.now()
     }))
     
-    // Add to host's student list
+    // Add to host's student list (account system - unique by username + team)
     let hostStudents = []
     if (sid) {
       const sessionStudents = localStorage.getItem(`students-${sid}`)
@@ -113,23 +118,31 @@ export default function StudentLoginPage() {
     const team = teams.find((t: any) => t.id === selectedTeam)
     
     if (team) {
-      // Check if student with same ID already exists
-      const existingIndex = hostStudents.findIndex((s: any) => s.id === studentId)
+      // Check if student account already exists (by username + team combination)
+      const existingIndex = hostStudents.findIndex((s: any) => 
+        s.name?.toLowerCase() === name.trim().toLowerCase() && 
+        s.team === selectedTeam &&
+        (s.sessionId === sid || !s.sessionId)
+      )
+      
       if (existingIndex >= 0) {
-        // Update existing student
+        // Update existing student account (host can edit this)
         hostStudents[existingIndex] = {
           ...hostStudents[existingIndex],
-          name,
-          team: selectedTeam,
+          id: studentId, // Update ID to match account key
+          name: name.trim(), // Update name (host can edit)
+          team: selectedTeam, // Update team (host can edit)
+          sessionId: sid,
           lastSeen: Date.now(),
           isOnline: true
         }
       } else {
-        // Add new student
+        // Create new student account
         hostStudents.push({
           id: studentId,
-          name,
+          name: name.trim(),
           team: selectedTeam,
+          sessionId: sid,
           status: 'pending',
           response: '',
           lastSeen: Date.now(),

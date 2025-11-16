@@ -41,7 +41,6 @@ export default function HostPage() {
   const [showAnswers, setShowAnswers] = useState(true)
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [summaryToken, setSummaryToken] = useState('lqisr-summary-' + Math.random().toString(36).substr(2, 9))
-  const [showSessionInfo, setShowSessionInfo] = useState(false)
 
   // Get session ID from URL or create one
   const [sessionId, setSessionId] = useState<string>('')
@@ -212,10 +211,14 @@ export default function HostPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ teams }),
+        }).then(response => {
+          if (response.ok) {
+            console.log('Teams saved to API successfully')
+          }
         }).catch(error => {
           console.warn('Failed to save teams to API:', error)
         })
-      }, 500)
+      }, 300) // Reduced debounce for faster sync
       
       return () => clearTimeout(timeoutId)
     } catch (error) {
@@ -619,118 +622,6 @@ export default function HostPage() {
         onReset={handleReset}
       />
 
-      {/* Session Info Button */}
-      {sessionId && (
-        <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
-          <button
-            onClick={() => setShowSessionInfo(true)}
-            className="bg-burgundy hover:bg-burgundy/90 text-parchment px-4 py-2 rounded-lg shadow-lg font-serif text-sm"
-            title="Share session link with students"
-          >
-            📱 Share Session
-          </button>
-          <div className="bg-card border border-sepia rounded px-2 py-1 text-xs font-mono text-muted-foreground">
-            Session: {sessionId.substring(0, 12)}...
-          </div>
-        </div>
-      )}
-
-      {/* Session Info Modal */}
-      {showSessionInfo && sessionId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border-2 border-sepia rounded-lg p-8 max-w-md w-full shadow-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-muted">
-              <h2 className="text-2xl font-serif text-burgundy">Share Session</h2>
-              <button
-                onClick={() => setShowSessionInfo(false)}
-                className="text-sepia hover:text-burgundy text-2xl"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              <p className="text-sm font-serif text-foreground">
-                Share this link with students so they can join your session:
-              </p>
-
-              <div className="bg-muted p-4 rounded-lg">
-                <p className="text-xs font-serif text-sepia uppercase tracking-wide mb-2">Student Link:</p>
-                <p className="text-sm font-mono text-foreground break-all bg-background p-2 rounded">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/studentlogin?session=${sessionId}` : ''}
-                </p>
-              </div>
-
-              <div className="bg-muted p-4 rounded-lg">
-                <p className="text-xs font-serif text-sepia uppercase tracking-wide mb-2">Session ID:</p>
-                <p className="text-sm font-mono text-foreground break-all bg-background p-2 rounded">
-                  {sessionId}
-                </p>
-              </div>
-
-              <button
-                onClick={() => {
-                  const studentUrl = typeof window !== 'undefined' ? `${window.location.origin}/studentlogin?session=${sessionId}` : ''
-                  if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(studentUrl).then(() => {
-                      alert('Link copied to clipboard!')
-                    }).catch(() => {
-                      // Fallback for older browsers
-                      const textArea = document.createElement('textarea')
-                      textArea.value = studentUrl
-                      document.body.appendChild(textArea)
-                      textArea.select()
-                      document.execCommand('copy')
-                      document.body.removeChild(textArea)
-                      alert('Link copied to clipboard!')
-                    })
-                  } else {
-                    // Fallback for older browsers
-                    const textArea = document.createElement('textarea')
-                    textArea.value = studentUrl
-                    document.body.appendChild(textArea)
-                    textArea.select()
-                    document.execCommand('copy')
-                    document.body.removeChild(textArea)
-                    alert('Link copied to clipboard!')
-                  }
-                }}
-                className="w-full bg-burgundy hover:bg-burgundy/90 text-parchment px-4 py-2 rounded-lg font-serif"
-              >
-                Copy Student Link
-              </button>
-
-              <button
-                onClick={() => {
-                  if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(sessionId).then(() => {
-                      alert('Session ID copied!')
-                    })
-                  } else {
-                    const textArea = document.createElement('textarea')
-                    textArea.value = sessionId
-                    document.body.appendChild(textArea)
-                    textArea.select()
-                    document.execCommand('copy')
-                    document.body.removeChild(textArea)
-                    alert('Session ID copied!')
-                  }
-                }}
-                className="w-full bg-gold hover:bg-gold/90 text-ink px-4 py-2 rounded-lg font-serif"
-              >
-                Copy Session ID
-              </button>
-
-              <button
-                onClick={() => setShowSessionInfo(false)}
-                className="w-full bg-sepia text-parchment hover:bg-sepia/90 px-4 py-2 rounded-lg font-serif"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </HostLayout>
   )
 }

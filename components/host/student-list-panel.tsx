@@ -80,11 +80,25 @@ export default function StudentListPanel({
 
   const handleSaveEdit = () => {
     if (editingStudent && editName.trim()) {
-      const updated = students.map(s => 
-        s.id === editingStudent 
-          ? { ...s, name: editName.trim(), team: editTeam }
-          : s
-      )
+      const studentToEdit = students.find(s => s.id === editingStudent)
+      if (!studentToEdit) return
+      
+      // Update student account (host can edit name and team)
+      const updated = students.map(s => {
+        if (s.id === editingStudent) {
+          // Update the student account with new name and team
+          // Keep the same ID to maintain account continuity
+          return { 
+            ...s, 
+            name: editName.trim(), 
+            team: editTeam,
+            // Update lastSeen to show they're active
+            lastSeen: Date.now(),
+            isOnline: true
+          }
+        }
+        return s
+      })
       onStudentUpdate(updated)
       
       // Save to API
@@ -94,6 +108,24 @@ export default function StudentListPanel({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ students: updated }),
         }).catch(err => console.warn('Failed to save students:', err))
+      }
+      
+      // Also update student's localStorage assignment if they're logged in
+      try {
+        const assignment = localStorage.getItem('student-team-assignment')
+        if (assignment) {
+          const data = JSON.parse(assignment)
+          if (data.studentId === editingStudent || data.name?.toLowerCase() === studentToEdit.name?.toLowerCase()) {
+            localStorage.setItem('student-team-assignment', JSON.stringify({
+              ...data,
+              name: editName.trim(),
+              teamId: editTeam,
+              studentId: editingStudent
+            }))
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to update student assignment:', e)
       }
       
       setEditingStudent(null)

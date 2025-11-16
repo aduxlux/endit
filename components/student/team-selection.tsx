@@ -41,6 +41,9 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
               const data = await response.json()
               if (Array.isArray(data.teams) && data.teams.length > 0) {
                 loadedTeams = data.teams
+                // Also save to localStorage for faster access
+                localStorage.setItem(`teams-${sessionId}`, JSON.stringify(loadedTeams))
+                localStorage.setItem('host-teams', JSON.stringify(loadedTeams))
                 setTeams(loadedTeams)
                 return // Success, exit early
               }
@@ -82,7 +85,7 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
           }
         }
         
-        // 4. Try to find any teams-* key in localStorage
+        // 4. Try to find any teams-* key in localStorage (fallback for cross-device)
         if (loadedTeams.length === 0) {
           for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i)
@@ -93,6 +96,10 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
                   const parsed = JSON.parse(stored)
                   if (Array.isArray(parsed) && parsed.length > 0) {
                     loadedTeams = parsed
+                    // Also save to current session for consistency
+                    if (sessionId) {
+                      localStorage.setItem(`teams-${sessionId}`, JSON.stringify(loadedTeams))
+                    }
                     setTeams(loadedTeams)
                     return // Success, exit early
                   }
@@ -107,6 +114,9 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
         // If we still have no teams, set empty array
         if (loadedTeams.length === 0) {
           setTeams([])
+        } else {
+          // Ensure teams are set
+          setTeams(loadedTeams)
         }
       } catch (error) {
         console.error('Error loading teams:', error)
