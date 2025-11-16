@@ -1,0 +1,208 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Updated design tokens for 18th-century philosopher academy aesthetic */
+:root {
+  /* Philosopher academy color palette */
+  --parchment: #f7f0e6;
+  --sepia: #7b5a40;
+  --ink: #2b2b2b;
+  --burgundy: #7a1123;
+  --gold: #c9a34a;
+  
+  /* Semantic tokens */
+  --background: var(--parchment);
+  --foreground: var(--ink);
+  --card: #f5ede2;
+  --card-foreground: var(--ink);
+  --primary: var(--burgundy);
+  --primary-foreground: var(--parchment);
+  --secondary: var(--sepia);
+  --secondary-foreground: var(--parchment);
+  --accent: var(--gold);
+  --accent-foreground: var(--ink);
+  --muted: #e8dfd2;
+  --muted-foreground: #6b5344;
+  --border: #d4cfc6;
+  --input: #f5ede2;
+  --ring: var(--gold);
+  --chart-1: var(--burgundy);
+  --chart-2: var(--sepia);
+  --chart-3: var(--gold);
+  --chart-4: #a67c52;
+  --chart-5: #d4a574;
+  --radius: 0.25rem;
+  --sidebar: var(--parchment);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--burgundy);
+  --sidebar-primary-foreground: var(--parchment);
+  --sidebar-accent: var(--gold);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+.dark {
+  --background: #1a1410;
+  --foreground: #f7f0e6;
+  --card: #2a1f15;
+  --card-foreground: #f7f0e6;
+  --primary: #9d1f35;
+  --primary-foreground: #f7f0e6;
+  --secondary: #9d7a60;
+  --secondary-foreground: #f7f0e6;
+  --accent: #d4b574;
+  --accent-foreground: #1a1410;
+  --muted: #3a2f25;
+  --muted-foreground: #c9bfb3;
+  --border: #3a2f25;
+  --input: #2a1f15;
+  --ring: #d4b574;
+  --chart-1: #9d1f35;
+  --chart-2: #9d7a60;
+  --chart-3: #d4b574;
+  --chart-4: #c4916e;
+  --chart-5: #e6b89e;
+  --sidebar: #1a1410;
+  --sidebar-foreground: #f7f0e6;
+  --sidebar-primary: #9d1f35;
+  --sidebar-primary-foreground: #f7f0e6;
+  --sidebar-accent: #d4b574;
+  --sidebar-accent-foreground: #1a1410;
+  --sidebar-border: #3a2f25;
+  --sidebar-ring: #d4b574;
+}
+
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback';
+  --font-serif: 'Cormorant', 'Cormorant Fallback', serif;
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    background-image: 
+      repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 2px,
+        rgba(123, 90, 64, 0.02) 2px,
+        rgba(123, 90, 64, 0.02) 4px
+      );
+  }
+}
+
+/* Animations for 18th-century aesthetic */
+@keyframes quill-stroke {
+  from {
+    stroke-dashoffset: 1000;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ink-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.3;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes candle-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    opacity: 0.8;
+  }
+  20%, 24%, 55% {
+    opacity: 1;
+  }
+}
+
+@keyframes page-turn {
+  from {
+    transform: rotateY(-90deg);
+    opacity: 0;
+  }
+  to {
+    transform: rotateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes wax-seal-drop {
+  0% {
+    transform: translateY(-40px) scale(0);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-quill-stroke {
+  animation: quill-stroke 3s ease-in-out forwards;
+}
+
+.animate-ink-drop {
+  animation: ink-drop 1.5s ease-out forwards;
+}
+
+.animate-candle-flicker {
+  animation: candle-flicker 4s infinite;
+}
+
+.animate-page-turn {
+  animation: page-turn 0.6s ease-out forwards;
+}
+
+.animate-wax-seal-drop {
+  animation: wax-seal-drop 0.8s ease-out forwards;
+}
