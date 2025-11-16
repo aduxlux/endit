@@ -17,10 +17,15 @@ export default function TeamSelection({ onSelect }: TeamSelectionProps) {
   const [selectedTeam, setSelectedTeam] = useState<string>('')
   const [teams, setTeams] = useState<Team[]>([])
 
-  // Load teams from localStorage (set by host)
+  // Load teams from localStorage (set by host) - using session ID
   useEffect(() => {
     const loadTeams = () => {
-      const savedTeams = localStorage.getItem('host-teams')
+      // Get session ID from URL
+      const urlParams = new URLSearchParams(window.location.search)
+      const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id') || 'default-session'
+      
+      // Try session-specific first, then fallback to old key
+      const savedTeams = localStorage.getItem(`teams-${sessionId}`) || localStorage.getItem('host-teams')
       if (savedTeams) {
         setTeams(JSON.parse(savedTeams))
       }

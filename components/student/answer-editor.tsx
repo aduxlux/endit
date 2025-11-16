@@ -70,6 +70,13 @@ export default function AnswerEditor({ question, onSubmit }: AnswerEditorProps) 
       <div className="bg-card border-2 border-sepia rounded-lg p-8 shadow-lg">
         <h2 className="text-2xl font-serif text-burgundy mb-6">Your Philosophical Response</h2>
 
+        {question && (
+          <div className="mb-6 p-4 bg-background rounded-md border border-muted">
+            <p className="text-sm font-serif text-sepia mb-2">Question:</p>
+            <p className="text-lg font-serif text-foreground italic">{question}</p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-serif text-sepia uppercase tracking-wide mb-3">

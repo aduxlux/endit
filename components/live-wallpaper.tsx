@@ -14,9 +14,17 @@ interface Particle {
 
 export default function LiveWallpaper() {
   const [particles, setParticles] = useState<Particle[]>([])
+  const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
-    // Create floating particles
+    // Detect mobile device
+    const checkMobile = () => {
+      return window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    }
+    
+    setIsMobile(checkMobile())
+    
+    // Create floating particles (fewer on mobile for performance)
     const createParticles = () => {
       const newParticles: Particle[] = []
       const colors = [
@@ -26,7 +34,10 @@ export default function LiveWallpaper() {
         'rgba(212, 181, 116, 0.1)', // light gold
       ]
 
-      for (let i = 0; i < 15; i++) {
+      const particleCount = isMobile ? 5 : 15 // Fewer particles on mobile
+      const wispCount = isMobile ? 3 : 8 // Fewer wisps on mobile
+
+      for (let i = 0; i < particleCount; i++) {
         newParticles.push({
           id: i,
           x: Math.random() * 100,
@@ -48,7 +59,31 @@ export default function LiveWallpaper() {
     }, 50000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [isMobile])
+
+  // Reduce animations on mobile
+  if (isMobile) {
+    return (
+      <div className="live-wallpaper">
+        {/* Minimal particles on mobile */}
+        {particles.slice(0, 3).map((particle) => (
+          <div
+            key={particle.id}
+            className="wallpaper-particle"
+            style={{
+              left: `${particle.x}%`,
+              bottom: `${particle.y}%`,
+              width: `${particle.size}px`,
+              height: `${particle.size}px`,
+              backgroundColor: particle.color,
+              animationDuration: `${particle.duration}s`,
+              animationDelay: `${particle.delay}s`,
+            }}
+          />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="live-wallpaper">

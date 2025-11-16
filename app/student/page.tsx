@@ -83,6 +83,10 @@ export default function StudentPage() {
   const handleAnswerSubmit = (answer: string) => {
     setCurrentAnswer(answer)
     
+    // Get session ID from URL
+    const urlParams = new URLSearchParams(window.location.search)
+    const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id') || 'default-session'
+    
     // Get student ID from team assignment
     const studentTeamData = localStorage.getItem('student-team-assignment')
     let studentId = `student-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -101,14 +105,15 @@ export default function StudentPage() {
       timestamp: new Date().toISOString()
     }
     
-    // Get existing answers
-    const existingAnswers = JSON.parse(localStorage.getItem('student-answers') || '[]')
+    // Get existing answers (using session ID)
+    const existingAnswers = JSON.parse(localStorage.getItem(`answers-${sessionId}`) || localStorage.getItem('student-answers') || '[]')
     existingAnswers.push(answerData)
-    localStorage.setItem('student-answers', JSON.stringify(existingAnswers))
+    localStorage.setItem(`answers-${sessionId}`, JSON.stringify(existingAnswers))
+    localStorage.setItem('student-answers', JSON.stringify(existingAnswers)) // Also save to old key
     
-    // Also update the host's student list
-    const hostStudents = JSON.parse(localStorage.getItem('host-students') || '[]')
-    const team = JSON.parse(localStorage.getItem('host-teams') || '[]').find((t: any) => t.id === selectedTeam)
+    // Also update the host's student list (using session ID)
+    const hostStudents = JSON.parse(localStorage.getItem(`students-${sessionId}`) || localStorage.getItem('host-students') || '[]')
+    const team = JSON.parse(localStorage.getItem(`teams-${sessionId}`) || localStorage.getItem('host-teams') || '[]').find((t: any) => t.id === selectedTeam)
     
     if (team) {
       const existingStudentIndex = hostStudents.findIndex((s: any) => s.id === studentId)
@@ -127,7 +132,8 @@ export default function StudentPage() {
           response: answer
         })
       }
-      localStorage.setItem('host-students', JSON.stringify(hostStudents))
+      localStorage.setItem(`students-${sessionId}`, JSON.stringify(hostStudents))
+      localStorage.setItem('host-students', JSON.stringify(hostStudents)) // Also save to old key
     }
     
     setFlow('confirmation')
@@ -146,10 +152,17 @@ export default function StudentPage() {
       {flow === 'team' && <TeamSelection onSelect={handleTeamSelect} />}
       {flow === 'username' && <UsernameEntry onSubmit={handleUsernameSubmit} team={selectedTeam} />}
       {flow === 'question' && (
-        <QuestionView username={username} team={selectedTeam} onAnswer={() => setFlow('answer')} />
+        <QuestionView 
+          username={username} 
+          team={selectedTeam} 
+          onAnswer={() => {
+            setCurrentQuestion('Quelle est la nature de la bonne vie, et comment se rapporte-t-elle à la vertu?')
+            setFlow('answer')
+          }} 
+        />
       )}
       {flow === 'answer' && (
-        <AnswerEditor onSubmit={handleAnswerSubmit} question={currentQuestion} />
+        <AnswerEditor onSubmit={handleAnswerSubmit} question={currentQuestion || 'Quelle est la nature de la bonne vie, et comment se rapporte-t-elle à la vertu?'} />
       )}
       {flow === 'confirmation' && (
         <SubmissionConfirmation answer={currentAnswer} onReset={handleReset} />

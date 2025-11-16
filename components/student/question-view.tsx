@@ -77,7 +77,7 @@ export default function QuestionView({ username, team, onAnswer }: QuestionViewP
         )}
       </div>
 
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{__html: `
         @keyframes fade-in {
           from {
             opacity: 0;
@@ -89,7 +89,7 @@ export default function QuestionView({ username, team, onAnswer }: QuestionViewP
         .animate-fade-in {
           animation: fade-in 0.5s ease-in-out;
         }
-      `}</style>
+      `}} />
     </div>
   )
 }
