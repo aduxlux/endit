@@ -5,9 +5,13 @@ import { useState } from 'react'
 interface Question {
   id: string
   text: string
-  level: string
-  answers: Array<{ studentId: string; text: string; rating?: number }>
+  level: 'easy' | 'medium' | 'hard'
+  order_index?: number
+  answers?: Array<{ studentId: string; text: string; rating?: number }>
 }
+
+// Export for use in other components
+export type { Question }
 
 interface Student {
   id: string

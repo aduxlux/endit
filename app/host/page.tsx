@@ -6,6 +6,7 @@ import LevelControlPanel from '@/components/host/level-control-panel'
 import TeamsPanel from '@/components/host/teams-panel'
 import StudentListPanel from '@/components/host/student-list-panel'
 import QuestionsAnswersPanel from '@/components/host/questions-answers-panel'
+import QuestionsManagementPanel from '@/components/host/questions-management-panel'
 import ControlButtons from '@/components/host/control-buttons'
 import PinEntry from '@/components/host/pin-entry'
 import QRCodeModal from '@/components/host/qr-code-modal'
@@ -25,12 +26,7 @@ interface Student {
   response: string
 }
 
-interface Question {
-  id: string
-  text: string
-  level: string
-  answers: Array<{ studentId: string; text: string; rating?: number }>
-}
+import type { Question } from '@/components/host/questions-answers-panel'
 
 export default function HostPage() {
   const [isPinVerified, setIsPinVerified] = useState(false)
@@ -38,11 +34,7 @@ export default function HostPage() {
   const [isRunning, setIsRunning] = useState(false)
   const [teams, setTeams] = useState<Team[]>([])
   const [students, setStudents] = useState<Student[]>([])
-  const [questions, setQuestions] = useState<Question[]>([
-    { id: '1', text: 'Quelle est la nature de la bonne vie?', level: 'easy', answers: [] },
-    { id: '2', text: 'Comment la vertu se rapporte-t-elle au bonheur?', level: 'medium', answers: [] },
-    { id: '3', text: 'Le bonheur peut-il être atteint par des moyens externes?', level: 'hard', answers: [] },
-  ])
+  const [questions, setQuestions] = useState<Question[]>([])
   const [showAnswers, setShowAnswers] = useState(true)
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [summaryToken, setSummaryToken] = useState('lqisr-summary-' + Math.random().toString(36).substr(2, 9))
@@ -334,11 +326,7 @@ export default function HostPage() {
     setIsRunning(false)
     setTeams([])
     setStudents([])
-    setQuestions([
-      { id: '1', text: 'Quelle est la nature de la bonne vie?', level: 'easy', answers: [] },
-      { id: '2', text: 'Comment la vertu se rapporte-t-elle au bonheur?', level: 'medium', answers: [] },
-      { id: '3', text: 'Le bonheur peut-il être atteint par des moyens externes?', level: 'hard', answers: [] },
-    ])
+    setQuestions([])
     setShowAnswers(true)
     setSelectedTeam(null)
     setSummaryToken('lqisr-summary-' + Math.random().toString(36).substr(2, 9))
@@ -422,6 +410,15 @@ export default function HostPage() {
             selectedTeam={selectedTeam}
           />
         </div>
+      </div>
+
+      {/* Questions Management Panel - Full Width */}
+      <div className="mt-6">
+        <QuestionsManagementPanel
+          sessionId={sessionId}
+          questions={questions}
+          onQuestionsUpdate={setQuestions}
+        />
       </div>
 
       {/* Control buttons */}

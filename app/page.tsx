@@ -9,7 +9,8 @@ export default function RoleSelection() {
   const [isHovering, setIsHovering] = useState<'host' | 'student' | null>(null)
 
   const handleHostClick = () => {
-    router.push('/intro?role=host')
+    // Host goes directly to host page which has PIN entry (PIN 1975)
+    router.push('/host')
   }
 
   const handleStudentClick = () => {

@@ -15,15 +15,17 @@ export default function StudentPage() {
   const [hasSession, setHasSession] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState<string>('')
   const [username, setUsername] = useState<string>('')
-  const [currentQuestion, setCurrentQuestion] = useState<string>('')
+  const [currentQuestion, setCurrentQuestion] = useState<{ id: string; text: string; level: string } | null>(null)
   const [currentAnswer, setCurrentAnswer] = useState<string>('')
+  const [sessionId, setSessionId] = useState<string>('')
 
   // Check for session ID on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
-    const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id')
+    const sid = urlParams.get('session') || localStorage.getItem('host-session-id')
     
-    if (sessionId) {
+    if (sid) {
+      setSessionId(sid)
       setHasSession(true)
       setFlow('team')
     } else {
@@ -33,6 +35,8 @@ export default function StudentPage() {
           .some(key => key && key.startsWith('teams-') && localStorage.getItem(key))
       
       if (hasTeams) {
+        const sid = localStorage.getItem('host-session-id') || 'default-session'
+        setSessionId(sid)
         setHasSession(true)
         setFlow('team')
       }
@@ -155,12 +159,13 @@ export default function StudentPage() {
     setFlow('question')
   }
 
-  const handleAnswerSubmit = (answer: string) => {
+  const handleAnswerSubmit = async (answer: string) => {
     setCurrentAnswer(answer)
     
-    // Get session ID from URL
-    const urlParams = new URLSearchParams(window.location.search)
-    const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id') || 'default-session'
+    if (!currentQuestion) {
+      console.error('No current question to submit answer to')
+      return
+    }
     
     // Get student ID from team assignment
     const studentTeamData = localStorage.getItem('student-team-assignment')
@@ -180,13 +185,34 @@ export default function StudentPage() {
       timestamp: new Date().toISOString()
     }
     
-    // Get existing answers (using session ID)
+    // Save to API (database)
+    try {
+      await fetch(`/api/answers/${sessionId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          studentId,
+          studentName: username,
+          teamId: selectedTeam,
+          text: answer,
+          questionId: currentQuestion.id
+        }),
+      }).catch(error => {
+        console.warn('Failed to save answer to API:', error)
+      })
+    } catch (error) {
+      console.warn('Error saving answer to API:', error)
+    }
+    
+    // Also save to localStorage as backup
     const existingAnswers = JSON.parse(localStorage.getItem(`answers-${sessionId}`) || localStorage.getItem('student-answers') || '[]')
     existingAnswers.push(answerData)
     localStorage.setItem(`answers-${sessionId}`, JSON.stringify(existingAnswers))
     localStorage.setItem('student-answers', JSON.stringify(existingAnswers)) // Also save to old key
     
-    // Also update the host's student list (using session ID)
+    // Also update the host's student list (using session ID) - save to API
     const hostStudents = JSON.parse(localStorage.getItem(`students-${sessionId}`) || localStorage.getItem('host-students') || '[]')
     const team = JSON.parse(localStorage.getItem(`teams-${sessionId}`) || localStorage.getItem('host-teams') || '[]').find((t: any) => t.id === selectedTeam)
     
@@ -207,6 +233,23 @@ export default function StudentPage() {
           response: answer
         })
       }
+      
+      // Save students to API
+      try {
+        await fetch(`/api/students/${sessionId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ students: hostStudents }),
+        }).catch(error => {
+          console.warn('Failed to save students to API:', error)
+        })
+      } catch (error) {
+        console.warn('Error saving students to API:', error)
+      }
+      
+      // Also save to localStorage
       localStorage.setItem(`students-${sessionId}`, JSON.stringify(hostStudents))
       localStorage.setItem('host-students', JSON.stringify(hostStudents)) // Also save to old key
     }
@@ -218,7 +261,7 @@ export default function StudentPage() {
     setFlow('team')
     setSelectedTeam('')
     setUsername('')
-    setCurrentQuestion('')
+    setCurrentQuestion(null)
     setCurrentAnswer('')
   }
 
@@ -235,15 +278,16 @@ export default function StudentPage() {
       {flow === 'question' && (
         <QuestionView 
           username={username} 
-          team={selectedTeam} 
-          onAnswer={() => {
-            setCurrentQuestion('Quelle est la nature de la bonne vie, et comment se rapporte-t-elle à la vertu?')
+          team={selectedTeam}
+          sessionId={sessionId}
+          onAnswer={(question) => {
+            setCurrentQuestion(question)
             setFlow('answer')
           }} 
         />
       )}
       {flow === 'answer' && (
-        <AnswerEditor onSubmit={handleAnswerSubmit} question={currentQuestion || 'Quelle est la nature de la bonne vie, et comment se rapporte-t-elle à la vertu?'} />
+        <AnswerEditor onSubmit={handleAnswerSubmit} question={currentQuestion?.text || 'Aucune question disponible'} />
       )}
       {flow === 'confirmation' && (
         <SubmissionConfirmation answer={currentAnswer} onReset={handleReset} />

@@ -15,48 +15,105 @@ interface Answer {
   rating?: number
   highlighted?: boolean
   timestamp: Date
+  level?: string
 }
 
 export default function AnswersPage() {
   const [answers, setAnswers] = useState<Answer[]>([])
+  const [filteredAnswers, setFilteredAnswers] = useState<Answer[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [showAllAnswers, setShowAllAnswers] = useState(false)
   const [highlightedAnswerId, setHighlightedAnswerId] = useState<string | null>(null)
+  const [filterTeam, setFilterTeam] = useState<string | null>(null)
+  const [filterStudent, setFilterStudent] = useState<string | null>(null)
+  const [filterLevel, setFilterLevel] = useState<string | null>(null)
+  const [sessionId, setSessionId] = useState<string>('')
 
-  // Load answers from localStorage (using session ID)
+  // Load answers from API and localStorage (using session ID)
   useEffect(() => {
-    const loadAnswers = () => {
+    const loadAnswers = async () => {
       try {
         // Get session ID from URL
         const urlParams = new URLSearchParams(window.location.search)
-        const sessionId = urlParams.get('session') || localStorage.getItem('host-session-id')
+        const sid = urlParams.get('session') || localStorage.getItem('host-session-id')
+        setSessionId(sid || '')
         
-        // Get answers (try session-specific first)
-        let studentAnswers = []
-        if (sessionId) {
-          const sessionAnswers = localStorage.getItem(`answers-${sessionId}`)
-          if (sessionAnswers) {
-            studentAnswers = JSON.parse(sessionAnswers)
+        // Try to load from API first
+        let studentAnswers: any[] = []
+        if (sid) {
+          try {
+            const apiResponse = await fetch(`/api/answers/${sid}`)
+            if (apiResponse.ok) {
+              const apiData = await apiResponse.json()
+              if (Array.isArray(apiData.answers) && apiData.answers.length > 0) {
+                studentAnswers = apiData.answers
+              }
+            }
+          } catch (apiError) {
+            console.warn('Failed to load from API:', apiError)
           }
         }
+        
+        // Fallback to localStorage
         if (studentAnswers.length === 0) {
-          studentAnswers = JSON.parse(localStorage.getItem('student-answers') || '[]')
+          if (sid) {
+            const sessionAnswers = localStorage.getItem(`answers-${sid}`)
+            if (sessionAnswers) {
+              studentAnswers = JSON.parse(sessionAnswers)
+            }
+          }
+          if (studentAnswers.length === 0) {
+            studentAnswers = JSON.parse(localStorage.getItem('student-answers') || '[]')
+          }
         }
         
         // Get teams (try session-specific first)
         let teams = []
-        if (sessionId) {
-          const sessionTeams = localStorage.getItem(`teams-${sessionId}`)
-          if (sessionTeams) {
-            teams = JSON.parse(sessionTeams)
+        if (sid) {
+          try {
+            const teamsResponse = await fetch(`/api/teams/${sid}`)
+            if (teamsResponse.ok) {
+              const teamsData = await teamsResponse.json()
+              if (Array.isArray(teamsData.teams)) {
+                teams = teamsData.teams
+              }
+            }
+          } catch (teamsError) {
+            console.warn('Failed to load teams from API:', teamsError)
           }
         }
+        
         if (teams.length === 0) {
-          teams = JSON.parse(localStorage.getItem('host-teams') || '[]')
+          if (sid) {
+            const sessionTeams = localStorage.getItem(`teams-${sid}`)
+            if (sessionTeams) {
+              teams = JSON.parse(sessionTeams)
+            }
+          }
+          if (teams.length === 0) {
+            teams = JSON.parse(localStorage.getItem('host-teams') || '[]')
+          }
+        }
+        
+        // Get questions to determine level
+        let questions: any[] = []
+        if (sid) {
+          try {
+            const questionsResponse = await fetch(`/api/questions/${sid}`)
+            if (questionsResponse.ok) {
+              const questionsData = await questionsResponse.json()
+              if (Array.isArray(questionsData.questions)) {
+                questions = questionsData.questions
+              }
+            }
+          } catch (qError) {
+            console.warn('Failed to load questions from API:', qError)
+          }
         }
         
         const formattedAnswers: Answer[] = studentAnswers.map((answer: any) => {
           const team = teams.find((t: any) => t.id === answer.teamId)
+          const question = questions.find((q: any) => q.id === answer.questionId)
           return {
             id: answer.id,
             studentId: answer.studentId,
@@ -66,7 +123,8 @@ export default function AnswersPage() {
             text: answer.text,
             rating: answer.rating,
             highlighted: answer.highlighted || false,
-            timestamp: new Date(answer.timestamp || Date.now())
+            timestamp: new Date(answer.timestamp || Date.now()),
+            level: question?.level || 'unknown'
           }
         })
         
@@ -81,9 +139,29 @@ export default function AnswersPage() {
     
     loadAnswers()
     // Poll for new answers
-    const interval = setInterval(loadAnswers, 1000)
+    const interval = setInterval(loadAnswers, 2000)
     return () => clearInterval(interval)
-  }, [currentIndex])
+  }, [currentIndex, sessionId])
+
+  // Apply filters
+  useEffect(() => {
+    let filtered = [...answers]
+    
+    if (filterTeam) {
+      filtered = filtered.filter(a => a.teamId === filterTeam)
+    }
+    if (filterStudent) {
+      filtered = filtered.filter(a => a.studentId === filterStudent)
+    }
+    if (filterLevel) {
+      filtered = filtered.filter(a => (a as any).level === filterLevel)
+    }
+    
+    setFilteredAnswers(filtered)
+    if (filtered.length > 0 && currentIndex >= filtered.length) {
+      setCurrentIndex(0)
+    }
+  }, [answers, filterTeam, filterStudent, filterLevel, currentIndex])
 
   // Keyboard navigation
   useEffect(() => {
@@ -111,26 +189,98 @@ export default function AnswersPage() {
     return () => window.removeEventListener('keydown', handleKeyPress)
   }, [currentIndex, showAllAnswers, answers, highlightedAnswerId])
 
+  const displayAnswers = filteredAnswers.length > 0 ? filteredAnswers : answers
+  const teams = answers.reduce((acc, a) => {
+    if (!acc.find(t => t.id === a.teamId)) {
+      acc.push({ id: a.teamId, name: a.teamName })
+    }
+    return acc
+  }, [] as { id: string; name: string }[])
+  const students = answers.reduce((acc, a) => {
+    if (!acc.find(s => s.id === a.studentId)) {
+      acc.push({ id: a.studentId, name: a.studentName })
+    }
+    return acc
+  }, [] as { id: string; name: string }[])
+
   return (
     <AnswersLayout>
       <div className="w-full h-screen flex flex-col">
+        {/* Filters */}
+        <div className="bg-card border-b-2 border-sepia p-4 flex flex-wrap gap-4 items-center">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-serif text-sepia">Équipe:</label>
+            <select
+              value={filterTeam || ''}
+              onChange={(e) => setFilterTeam(e.target.value || null)}
+              className="px-3 py-1 border border-sepia rounded bg-background text-foreground font-serif text-sm"
+            >
+              <option value="">Toutes</option>
+              {teams.map(team => (
+                <option key={team.id} value={team.id}>{team.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-serif text-sepia">Étudiant:</label>
+            <select
+              value={filterStudent || ''}
+              onChange={(e) => setFilterStudent(e.target.value || null)}
+              className="px-3 py-1 border border-sepia rounded bg-background text-foreground font-serif text-sm"
+            >
+              <option value="">Tous</option>
+              {students.map(student => (
+                <option key={student.id} value={student.id}>{student.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-serif text-sepia">Niveau:</label>
+            <select
+              value={filterLevel || ''}
+              onChange={(e) => setFilterLevel(e.target.value || null)}
+              className="px-3 py-1 border border-sepia rounded bg-background text-foreground font-serif text-sm"
+            >
+              <option value="">Tous</option>
+              <option value="easy">Facile</option>
+              <option value="medium">Moyen</option>
+              <option value="hard">Difficile</option>
+            </select>
+          </div>
+          {(filterTeam || filterStudent || filterLevel) && (
+            <button
+              onClick={() => {
+                setFilterTeam(null)
+                setFilterStudent(null)
+                setFilterLevel(null)
+              }}
+              className="px-3 py-1 bg-sepia text-parchment rounded font-serif text-sm hover:bg-sepia/90"
+            >
+              Réinitialiser
+            </button>
+          )}
+          <div className="ml-auto text-sm font-serif text-sepia">
+            {displayAnswers.length} réponse{displayAnswers.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+
         {/* Main answers display */}
         <div className="flex-1 overflow-auto">
-          {answers.length === 0 ? (
+          {displayAnswers.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <div className="text-center text-muted-foreground font-serif">
-                <p className="text-2xl mb-2">No answers yet</p>
-                <p className="text-sm">Waiting for students to submit their responses...</p>
+                <p className="text-2xl mb-2">Aucune réponse</p>
+                <p className="text-sm">Aucune réponse ne correspond aux filtres sélectionnés</p>
               </div>
             </div>
           ) : showAllAnswers ? (
-            <AnswersGrid answers={answers} highlightedAnswerId={highlightedAnswerId} />
+            <AnswersGrid answers={displayAnswers} highlightedAnswerId={highlightedAnswerId} />
           ) : (
             <SingleAnswerView
-              answer={answers[currentIndex]}
-              isHighlighted={highlightedAnswerId === answers[currentIndex]?.id}
+              answer={displayAnswers[currentIndex]}
+              isHighlighted={highlightedAnswerId === displayAnswers[currentIndex]?.id}
               index={currentIndex}
-              total={answers.length}
+              total={displayAnswers.length}
             />
           )}
         </div>
@@ -138,11 +288,11 @@ export default function AnswersPage() {
         {/* Presenter controls */}
         <PresenterControls
           currentIndex={currentIndex}
-          total={answers.length}
+          total={displayAnswers.length}
           showAllAnswers={showAllAnswers}
           onShowAllToggle={setShowAllAnswers}
-          onNext={() => setCurrentIndex((prev) => (prev + 1) % answers.length)}
-          onPrev={() => setCurrentIndex((prev) => (prev - 1 + answers.length) % answers.length)}
+          onNext={() => setCurrentIndex((prev) => (prev + 1) % displayAnswers.length)}
+          onPrev={() => setCurrentIndex((prev) => (prev - 1 + displayAnswers.length) % displayAnswers.length)}
         />
       </div>
     </AnswersLayout>
